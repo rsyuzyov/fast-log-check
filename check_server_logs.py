@@ -1183,7 +1183,7 @@ def main():
                 output_file = args.output
             else:
                 timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
-                output_file = f"report_{hostname}_{timestamp}.html"
+                output_file = f"reports/report_{hostname}_{timestamp}.html"
             
             generate_html_report(report, output_file)
             logger.info(f"✅ Отчёт сохранён: {output_file}")
