@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отчет по логам {{ report.hostname }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+            {
+            % if report.connection_error %
+        }
+
+        .connection-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #dc3545;
+        }
+
+        .connection-error h2 {
+            margin-bottom: 10px;
+        }
+
+            {
+            % endif %
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .summary-card .number {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-card.errors .number {
+            color: #dc3545;
+        }
+
+        .summary-card.warnings .number {
+            color: #ffc107;
+        }
+
+        .summary-card.checked .number {
+            color: #28a745;
+        }
+
+        .summary-card.info .number {
+            color: #17a2b8;
+            font-size: 16px;
+        }
+
+        .summary-card .label {
+            font-size: 13px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #495057;
+            color: white;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        th.center,
+        td.center {
+            text-align: center;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        tbody tr.expanded {
+            background: #e7f3ff;
+        }
+
+        td {
+            padding: 15px;
+        }
+
+        .source-name {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .source-path {
+            font-size: 12px;
+            color: #6c757d;
+            font-family: 'Courier New', monospace;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge.error {
+            background: #fee;
+            color: #dc3545;
+        }
+
+        .badge.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .expand-icon {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
+            text-align: center;
+            background: #6c757d;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 10px;
+            transition: transform 0.3s;
+        }
+
+        tr.expanded .expand-icon {
+            transform: rotate(90deg);
+            background: #007bff;
+        }
+
+        .details {
+            display: none;
+            background: #f8f9fa;
+        }
+
+        .details.show {
+            display: table-row;
+        }
+
+        .details td {
+            padding: 0;
+        }
+
+        .details-content {
+            padding: 20px 30px;
+            background: white;
+            margin: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+
+        .error-item {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 12px;
+        }
+
+        .error-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .error-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .error-type {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .error-time {
+            font-size: 12px;
+            color: #6c757d;
+            font-family: 'Courier New', monospace;
+        }
+
+        .error-message {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #495057;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .error-details-list {
+            display: none;
+            margin-top: 10px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+
+        .sub-error {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #f8f9fa;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .sub-error:last-child {
+            border-bottom: none;
+        }
+
+        .sub-error-time {
+            font-family: 'Courier New', monospace;
+            margin-right: 15px;
+            white-space: nowrap;
+        }
+
+        .sub-error-msg {
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+            flex: 1;
+        }
+
+        .clickable {
+            cursor: pointer;
+        }
+
+        .clickable:hover {
+            background-color: #f8f9fa;
+        }
+
+        .error-severity {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-left: 10px;
+        }
+
+        .severity-critical {
+            background: #dc3545;
+            color: white;
+        }
+
+        .severity-warning {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .severity-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .count-badge {
+            background: #6c757d;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin-right: 8px;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+
+        .no-errors {
+            text-align: center;
+            padding: 30px;
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .footer {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+            border-top: 1px solid #e9ecef;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Отчет по логам сервера {{ report.hostname }}</h1>
+            <div class="subtitle">Анализ за {{ report.period_hours }} часов • {{ report.timestamp }}</div>
+        </div>
+
+        {% if report.connection_error %}
+        <div class="connection-error">
+            <h2>❌ Ошибка подключения к серверу</h2>
+            <p>{{ report.connection_error }}</p>
+        </div>
+        {% else %}
+
+        <div class="summary">
+            <div class="summary-card errors">
+                <div class="number">{{ report.total_errors }}</div>
+                <div class="label">Ошибок</div>
+            </div>
+            <div class="summary-card warnings">
+                <div class="number">{{ report.total_warnings }}</div>
+                <div class="label">Предупреждений</div>
+            </div>
+            <div class="summary-card checked">
+                <div class="number">{{ report.checks|length }}</div>
+                <div class="label">Источников проверено</div>
+            </div>
+            <div class="summary-card info">
+                <div class="number">{{ report.uptime }}</div>
+                <div class="label">Uptime</div>
+            </div>
+            <div class="summary-card info">
+                <div class="number">{{ report.load_average }}</div>
+                <div class="label">Load Average</div>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Источник</th>
+                    <th class="center">Ошибки</th>
+                    <th class="center">Предупреждения</th>
+                    <th class="center">Статус</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for check in report.checks %}
+                <tr onclick="toggleRow(this)">
+                    <td>
+                        <span class="expand-icon">▶</span>
+                        <div class="source-name">{{ check.source_name }}</div>
+                        <div class="source-path">{{ check.source_path }}</div>
+                    </td>
+                    <td class="center">
+                        {% if check.errors > 0 %}
+                        <span class="badge error">{{ check.errors }}</span>
+                        {% else %}
+                        <span class="badge success">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="center">
+                        {% if check.warnings > 0 %}
+                        <span class="badge warning">{{ check.warnings }}</span>
+                        {% else %}
+                        <span class="badge success">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="center">
+                        {% if check.status == 'error' %}
+                        <span class="badge error">Найдены ошибки</span>
+                        {% elif check.status == 'warning' %}
+                        <span class="badge warning">Есть предупреждения</span>
+                        {% else %}
+                        <span class="badge success">Ошибок нет</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr class="details">
+                    <td colspan="4">
+                        <div class="details-content">
+                            {% if check.entries %}
+                            {% for group in group_entries(check.entries) %}
+                            <div class="error-item {% if group.count > 1 %}clickable{% endif %}" {% if group.count> 1
+                                %}onclick="toggleErrorDetails(this)"{% endif %}>
+                                <div class="error-header">
+                                    <span class="error-type">
+                                        {% if group.count > 1 %}
+                                        <span class="count-badge">{{ group.count }}x</span>
+                                        {% endif %}
+                                        {{ group.entry.type }}
+                                        <span class="error-severity severity-{{ group.entry.severity }}">{{
+                                            group.entry.severity }}</span>
+                                    </span>
+                                    <span class="error-time">
+                                        {% if group.count > 1 and group.first_timestamp != group.last_timestamp %}
+                                        {{ group.first_timestamp }} ... {{ group.last_timestamp }}
+                                        {% else %}
+                                        {{ group.entry.timestamp }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                <div class="error-message">
+                                    {% if group.group_message %}
+                                    {{ group.group_message }}
+                                    {% else %}
+                                    {{ group.entry.message }}
+                                    {% endif %}
+                                </div>
+
+                                {% if group.count > 1 %}
+                                <div class="error-details-list" onclick="event.stopPropagation()">
+                                    {% for item in group.all_entries %}
+                                    <div class="sub-error">
+                                        <span class="sub-error-time">{{ item.timestamp }}</span>
+                                        <span class="sub-error-msg">{{ item.message }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <div class="no-errors">✅ Ошибок и предупреждений не обнаружено</div>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <div class="footer">
+            Отчет сгенерирован автоматически • {{ report.hostname }} • {{ report.timestamp }}
+        </div>
+    </div>
+
+    <script>
+        function toggleRow(row) {
+            const detailsRow = row.nextElementSibling;
+            const icon = row.querySelector('.expand-icon');
+
+            // Toggle expanded class
+            row.classList.toggle('expanded');
+
+            // Toggle details visibility
+            detailsRow.classList.toggle('show');
+        }
+
+        function toggleErrorDetails(element) {
+            const details = element.querySelector('.error-details-list');
+            if (details) {
+                if (details.style.display === 'block') {
+                    details.style.display = 'none';
+                } else {
+                    details.style.display = 'block';
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

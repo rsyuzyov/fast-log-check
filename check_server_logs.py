@@ -300,6 +300,116 @@ def classify_severity(message: str, check_name: str) -> str:
     return 'critical'
 
 
+# Глобальная переменная для правил группировки
+CUSTOM_GROUPING_RULES = {}
+
+def load_grouping_rules():
+    """Загрузка правил группировки из JSON файла"""
+    global CUSTOM_GROUPING_RULES
+    
+    script_dir = Path(__file__).parent
+    rules_file = script_dir / 'grouping_rules.json'
+    
+    if rules_file.exists():
+        try:
+            with open(rules_file, 'r', encoding='utf-8') as f:
+                CUSTOM_GROUPING_RULES = json.load(f)
+        except Exception as e:
+            logging.error(f"Ошибка загрузки правил группировки: {e}")
+    else:
+        # Правила по умолчанию, если файл не найден
+        CUSTOM_GROUPING_RULES = {
+            'CS_ERR_LIBRARY (failed to connect to corosync)': 'Ошибки подключения к corosync (CS_ERR_LIBRARY)',
+            'can\'t initialize service': 'Ошибка инициализации сервиса',
+            'cmap_initialize failed': 'Ошибка инициализации cmap',
+            'cpg_initialize failed': 'Ошибка инициализации cpg',
+            'quorum_initialize failed': 'Ошибка инициализации quorum',
+        }
+
+
+def normalize_message(text: str) -> str:
+    """Нормализация сообщения для группировки"""
+    # IP v4
+    text = re.sub(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', '{IP}', text)
+    # Hex numbers (0x...)
+    text = re.sub(r'0x[0-9a-fA-F]+', '{HEX}', text)
+    # PIDs in brackets [123]
+    text = re.sub(r'\[\d+\]', '[{PID}]', text)
+    # Numbers (исключая те, что уже заменены)
+    text = re.sub(r'\b\d+\b', '{N}', text)
+    # Удаляем временные метки в начале строки (если они есть)
+    text = re.sub(r'^\w+\s+\d+\s+\d+:\d+:\d+\s+', '', text)
+    return text.strip()
+
+
+@dataclass
+class GroupedLogEntry:
+    """Сгруппированная запись лога"""
+    count: int
+    first_timestamp: str
+    last_timestamp: str
+    entry: LogEntry
+    group_message: str
+    all_entries: List[LogEntry] = field(default_factory=list)
+
+
+def group_entries(entries: List[LogEntry]) -> List[GroupedLogEntry]:
+    """Группировка похожих записей"""
+    if not entries:
+        return []
+        
+    groups = {}
+    result = []
+    
+    # Сохраняем порядок появления групп
+    group_order = []
+    
+    for entry in entries:
+        # Проверяем кастомные правила группировки
+        custom_msg = None
+        for pattern, replacement in CUSTOM_GROUPING_RULES.items():
+            if pattern in entry.message:
+                custom_msg = f"{replacement} ({pattern})"
+                break
+        
+        if custom_msg:
+            norm_msg = custom_msg
+        else:
+            norm_msg = normalize_message(entry.message)
+            
+        # Ключ группировки
+        key = (entry.type, entry.severity, norm_msg)
+        
+        if key not in groups:
+            groups[key] = {
+                'count': 0,
+                'first_timestamp': entry.timestamp,
+                'last_timestamp': entry.timestamp,
+                'entry': entry,
+                'group_message': norm_msg,
+                'all_entries': []
+            }
+            group_order.append(key)
+        
+        groups[key]['count'] += 1
+        groups[key]['last_timestamp'] = entry.timestamp
+        groups[key]['all_entries'].append(entry)
+    
+    # Формируем результат
+    for key in group_order:
+        data = groups[key]
+        result.append(GroupedLogEntry(
+            count=data['count'],
+            first_timestamp=data['first_timestamp'],
+            last_timestamp=data['last_timestamp'],
+            entry=data['entry'],
+            group_message=data['group_message'],
+            all_entries=data['all_entries']
+        ))
+        
+    return result
+
+
 # Функции проверок
 class ServerChecks:
     """Класс с методами проверок сервера"""
@@ -1061,7 +1171,7 @@ def generate_html_report(report: ServerReport, output_file: str):
             autoescape=select_autoescape(['html', 'xml'])
         )
         template = env.get_template('report_template.html')
-        html_content = template.render(report=report)
+        html_content = template.render(report=report, group_entries=group_entries)
     else:
         # Иначе генерируем HTML напрямую
         html_content = generate_html_inline(report)
@@ -1072,87 +1182,448 @@ def generate_html_report(report: ServerReport, output_file: str):
 
 
 def generate_html_inline(report: ServerReport) -> str:
-    """Генерация HTML без шаблона"""
-    # Этот метод будет содержать inline HTML как запасной вариант
-    # Для экономии места использую упрощённую версию
+    """Генерация HTML без шаблона (стиль как в оригинальном артефакте srv-hv4)"""
     
+    # Полный CSS из оригинального артефакта
+    css = """
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .summary-card .number {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .summary-card.errors .number {
+            color: #dc3545;
+        }
+        
+        .summary-card.warnings .number {
+            color: #ffc107;
+        }
+        
+        .summary-card.checked .number {
+            color: #28a745;
+        }
+        
+        .summary-card .label {
+            font-size: 13px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background: #495057;
+            color: white;
+        }
+        
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        th.center, td.center {
+            text-align: center;
+        }
+        
+        tbody tr {
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        tbody tr.expanded {
+            background: #e7f3ff;
+        }
+        
+        td {
+            padding: 15px;
+        }
+        
+        .source-name {
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .source-path {
+            font-size: 12px;
+            color: #6c757d;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge.error {
+            background: #fee;
+            color: #dc3545;
+        }
+        
+        .badge.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .expand-icon {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
+            text-align: center;
+            background: #6c757d;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 10px;
+            transition: transform 0.3s;
+        }
+        
+        tr.expanded .expand-icon {
+            transform: rotate(90deg);
+            background: #007bff;
+        }
+        
+        .details {
+            display: none;
+            background: #f8f9fa;
+        }
+        
+        .details.show {
+            display: table-row;
+        }
+        
+        .details td {
+            padding: 0;
+        }
+        
+        .details-content {
+            padding: 20px 30px;
+            background: white;
+            margin: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .error-item {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 12px;
+        }
+        
+        .error-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .error-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .error-type {
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .error-time {
+            font-size: 12px;
+            color: #6c757d;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .error-message {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #495057;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .error-severity {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-left: 10px;
+        }
+        
+        .severity-critical {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .severity-warning {
+            background: #ffc107;
+            color: #000;
+        }
+        
+        .severity-info {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .count-badge {
+            background: #6c757d;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin-right: 8px;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+        
+        .no-errors {
+            text-align: center;
+            padding: 30px;
+            color: #28a745;
+            font-weight: 600;
+        }
+        
+        .footer {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+            border-top: 1px solid #e9ecef;
+        }
+    """
+    
+    # Генерируем HTML
     html = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Отчёт по логам {report.hostname}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отчет по логам {report.hostname}</title>
     <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; }}
-        h1 {{ color: #333; }}
-        table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
-        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-        th {{ background-color: #4CAF50; color: white; }}
-        .error {{ color: red; }}
-        .warning {{ color: orange; }}
-        .success {{ color: green; }}
+{css}
     </style>
 </head>
 <body>
-    <h1>Отчёт по логам сервера {report.hostname}</h1>
-    <p><strong>Время генерации:</strong> {report.timestamp}</p>
-    <p><strong>Период анализа:</strong> {report.period_hours} часов</p>
-    
-    {"<p class='error'><strong>Ошибка подключения:</strong> " + report.connection_error + "</p>" if report.connection_error else ""}
-    
-    <h2>Сводка</h2>
-    <p><strong>Всего ошибок:</strong> <span class='error'>{report.total_errors}</span></p>
-    <p><strong>Всего предупреждений:</strong> <span class='warning'>{report.total_warnings}</span></p>
-    <p><strong>Uptime:</strong> {report.uptime}</p>
-    <p><strong>Load Average:</strong> {report.load_average}</p>
-    
-    <h2>Детальные результаты</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Источник</th>
-                <th>Ошибки</th>
-                <th>Предупреждения</th>
-                <th>Статус</th>
-            </tr>
-        </thead>
-        <tbody>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Отчет по логам сервера {report.hostname}</h1>
+            <div class="subtitle">Анализ за {report.period_hours} часов • {report.timestamp}</div>
+        </div>
 """
     
-    for check in report.checks:
-        status_class = 'error' if check.status == 'error' else 'warning' if check.status == 'warning' else 'success'
+    if report.connection_error:
         html += f"""
-            <tr>
-                <td>{check.source_name}<br><small>{check.source_path}</small></td>
-                <td class='error'>{check.errors}</td>
-                <td class='warning'>{check.warnings}</td>
-                <td class='{status_class}'>{check.status}</td>
-            </tr>
+        <div class="connection-error">
+            <h2>❌ Ошибка подключения к серверу</h2>
+            <p>{report.connection_error}</p>
+        </div>
+"""
+    else:
+        html += f"""
+        <div class="summary">
+            <div class="summary-card errors">
+                <div class="number">{report.total_errors}</div>
+                <div class="label">Ошибок</div>
+            </div>
+            <div class="summary-card warnings">
+                <div class="number">{report.total_warnings}</div>
+                <div class="label">Предупреждений</div>
+            </div>
+            <div class="summary-card checked">
+                <div class="number">{len(report.checks)}</div>
+                <div class="label">Источников проверено</div>
+            </div>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Источник</th>
+                    <th class="center">Ошибки</th>
+                    <th class="center">Предупреждения</th>
+                    <th class="center">Статус</th>
+                </tr>
+            </thead>
+            <tbody>
 """
         
-        if check.entries:
-            html += f"""
-            <tr>
-                <td colspan='4'>
-                    <details>
-                        <summary>Детали ({len(check.entries)} записей)</summary>
-                        <ul>
-"""
-            for entry in check.entries[:20]:  # Ограничиваем количество
-                html += f"<li><strong>{entry.timestamp}</strong> [{entry.severity}] {entry.type}: {entry.message[:200]}</li>\n"
+        for check in report.checks:
+            # Определяем статус
+            if check.errors > 0:
+                status_text = "Найдены ошибки"
+                status_class = "error"
+            elif check.warnings > 0:
+                status_text = "Есть предупреждения"
+                status_class = "warning"
+            else:
+                status_text = "Ошибок нет"
+                status_class = "success"
             
-            if len(check.entries) > 20:
-                html += f"<li>... и ещё {len(check.entries) - 20} записей</li>\n"
+            html += f"""
+                <tr onclick="toggleRow(this)">
+                    <td>
+                        <span class="expand-icon">▶</span>
+                        <div class="source-name">{check.source_name}</div>
+                        <div class="source-path">{check.source_path}</div>
+                    </td>
+                    <td class="center">
+                        <span class="badge {'error' if check.errors > 0 else 'success'}">{check.errors}</span>
+                    </td>
+                    <td class="center">
+                        <span class="badge {'warning' if check.warnings > 0 else 'success'}">{check.warnings}</span>
+                    </td>
+                    <td class="center">
+                        <span class="badge {status_class}">{status_text}</span>
+                    </td>
+                </tr>
+                <tr class="details">
+                    <td colspan="4">
+                        <div class="details-content">
+"""
+            
+            if check.entries:
+                grouped_entries = group_entries(check.entries)
+                for group in grouped_entries:
+                    count_html = ""
+                    if group.count > 1:
+                        count_html = f'<span class="count-badge">{group.count}x</span>'
+                    
+                    timestamp_display = group.entry.timestamp
+                    if group.count > 1 and group.first_timestamp != group.last_timestamp:
+                        timestamp_display = f"{group.first_timestamp} ... {group.last_timestamp}"
+                        
+                    html += f"""
+                            <div class="error-item">
+                                <div class="error-header">
+                                    <span class="error-type">
+                                        {count_html}
+                                        {group.entry.type}
+                                        <span class="error-severity severity-{group.entry.severity}">{group.entry.severity}</span>
+                                    </span>
+                                    <span class="error-time">{timestamp_display}</span>
+                                </div>
+                                <div class="error-message">{group.entry.message}</div>
+                            </div>
+"""
+            else:
+                html += """
+                            <div class="no-errors">✅ Ошибок и предупреждений не обнаружено</div>
+"""
             
             html += """
-                        </ul>
-                    </details>
-                </td>
-            </tr>
+                        </div>
+                    </td>
+                </tr>
+"""
+        
+        html += """
+            </tbody>
+        </table>
 """
     
-    html += """
-        </tbody>
-    </table>
+    html += f"""
+        <div class="footer">
+            Отчет сгенерирован автоматически • {report.hostname} • {report.timestamp}
+        </div>
+    </div>
+    
+    <script>
+        function toggleRow(row) {{
+            const detailsRow = row.nextElementSibling;
+            const icon = row.querySelector('.expand-icon');
+            
+            // Toggle expanded class
+            row.classList.toggle('expanded');
+            
+            // Toggle details visibility
+            detailsRow.classList.toggle('show');
+        }}
+    </script>
 </body>
 </html>
 """
@@ -1164,6 +1635,9 @@ def main():
     """Основная функция"""
     args = parse_arguments()
     logger = setup_logging(args.verbose)
+    
+    # Загружаем правила группировки
+    load_grouping_rules()
     
     logger.info("=" * 80)
     logger.info(f"🔍 Проверка серверов: {', '.join(args.hostnames)}")
@@ -1182,8 +1656,10 @@ def main():
             if args.output:
                 output_file = args.output
             else:
+                reports_dir = Path("reports")
+                reports_dir.mkdir(exist_ok=True)
                 timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
-                output_file = f"reports/report_{hostname}_{timestamp}.html"
+                output_file = str(reports_dir / f"report_{hostname}_{timestamp}.html")
             
             generate_html_report(report, output_file)
             logger.info(f"✅ Отчёт сохранён: {output_file}")

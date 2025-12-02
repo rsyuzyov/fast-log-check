@@ -21,24 +21,19 @@ fi
 echo "✅ Python $PYTHON_VERSION"
 echo ""
 
-# Проверка и установка pip
+# Проверка pip
 echo "[2/4] Проверка pip3..."
 if ! command -v pip3 &> /dev/null; then
-    echo "⚠️  pip3 не найден, устанавливаю..."
-    apt update -qq && apt install -y python3-pip
-    if [ $? -ne 0 ]; then
-        echo "❌ Ошибка установки pip3"
-        exit 1
-    fi
-    echo "✅ pip3 установлен"
-else
-    echo "✅ pip3 уже установлен"
+    echo "❌ pip3 не найден. Установите: apt install python3-pip"
+    exit 1
 fi
+
+echo "✅ pip3 установлен"
 echo ""
 
 # Установка зависимостей
 echo "[3/4] Установка зависимостей..."
-pip3 install -q --break-system-packages --root-user-action=ignore paramiko jinja2
+pip3 install -q paramiko jinja2
 
 if [ $? -eq 0 ]; then
     echo "✅ Зависимости установлены"

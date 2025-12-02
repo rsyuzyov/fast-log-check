@@ -1,0 +1,7 @@
+{
+    "CS_ERR_LIBRARY (failed to connect to corosync)": "Ошибки подключения к corosync (CS_ERR_LIBRARY)",
+    "can't initialize service": "Ошибка инициализации сервиса",
+    "cmap_initialize failed": "Ошибка инициализации cmap",
+    "cpg_initialize failed": "Ошибка инициализации cpg",
+    "quorum_initialize failed": "Ошибка инициализации quorum"
+}
