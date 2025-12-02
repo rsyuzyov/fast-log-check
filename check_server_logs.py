@@ -310,33 +310,13 @@ def load_grouping_rules():
     script_dir = Path(__file__).parent
     rules_file = script_dir / 'grouping_rules.json'
     
-    # Типовые правила по умолчанию
-    default_rules = {
-        'CS_ERR_LIBRARY (failed to connect to corosync)': 'Ошибки подключения к corosync (CS_ERR_LIBRARY)',
-        'can\'t initialize service': 'Ошибка инициализации сервиса',
-        'cmap_initialize failed': 'Ошибка инициализации cmap',
-        'cpg_initialize failed': 'Ошибка инициализации cpg',
-        'quorum_initialize failed': 'Ошибка инициализации quorum',
-    }
-    
-    if rules_file.exists():
-        try:
-            with open(rules_file, 'r', encoding='utf-8') as f:
-                CUSTOM_GROUPING_RULES = json.load(f)
-            logging.info(f"Загружены правила группировки из {rules_file}")
-        except Exception as e:
-            logging.error(f"Ошибка загрузки правил группировки: {e}")
-            CUSTOM_GROUPING_RULES = default_rules
-    else:
-        # Создаём файл с типовыми правилами
-        try:
-            with open(rules_file, 'w', encoding='utf-8') as f:
-                json.dump(default_rules, f, ensure_ascii=False, indent=4)
-            CUSTOM_GROUPING_RULES = default_rules
-            logging.info(f"Создан файл правил группировки: {rules_file}")
-        except Exception as e:
-            logging.error(f"Ошибка создания файла правил группировки: {e}")
-            CUSTOM_GROUPING_RULES = default_rules
+    try:
+        with open(rules_file, 'r', encoding='utf-8') as f:
+            CUSTOM_GROUPING_RULES = json.load(f)
+        logging.info(f"Загружены правила группировки из {rules_file}")
+    except Exception as e:
+        logging.error(f"Ошибка загрузки правил группировки: {e}")
+        CUSTOM_GROUPING_RULES = {}
 
 
 def normalize_message(text: str) -> str:
@@ -362,6 +342,7 @@ class GroupedLogEntry:
     last_timestamp: str
     entry: LogEntry
     group_message: str
+    custom_severity: Optional[str]  # Переопределенная критичность из правил
     all_entries: List[LogEntry] = field(default_factory=list)
 
 
@@ -379,15 +360,43 @@ def group_entries(entries: List[LogEntry]) -> List[GroupedLogEntry]:
     for entry in entries:
         # Проверяем кастомные правила группировки
         custom_msg = None
-        for pattern, replacement in CUSTOM_GROUPING_RULES.items():
-            if pattern in entry.message:
-                custom_msg = f"{replacement} ({pattern})"
-                break
+        custom_severity = None
+        skip_entry = False
+        matched_rule = False
+        
+        for pattern, rule_config in CUSTOM_GROUPING_RULES.items():
+            # Используем regex для проверки
+            try:
+                if re.search(pattern, entry.message):
+                    matched_rule = True
+                    # Новый формат: {"title": "...", "severity": "..."}
+                    if isinstance(rule_config, dict):
+                        custom_msg = f"{rule_config.get('title', pattern)}"
+                        severity_value = rule_config.get('severity', '')
+                        
+                        if severity_value == 'skip':
+                            skip_entry = True
+                            break
+                        elif severity_value:  # Не пустая строка
+                            custom_severity = severity_value
+                    break
+            except re.error as e:
+                logging.warning(f"Некорректное регулярное выражение в правиле '{pattern}': {e}")
+                continue
+        
+        # Пропускаем события с severity="skip"
+        if skip_entry:
+            continue
         
         if custom_msg:
             norm_msg = custom_msg
         else:
-            norm_msg = normalize_message(entry.message)
+            # Автоматическая группировка
+            if matched_rule:
+                norm_msg = normalize_message(entry.message)
+            else:
+                # Группа "Прочее" для негруппированных событий
+                norm_msg = "Прочее"
             
         # Ключ группировки
         key = (entry.type, entry.severity, norm_msg)
@@ -399,6 +408,7 @@ def group_entries(entries: List[LogEntry]) -> List[GroupedLogEntry]:
                 'last_timestamp': entry.timestamp,
                 'entry': entry,
                 'group_message': norm_msg,
+                'custom_severity': custom_severity,
                 'all_entries': []
             }
             group_order.append(key)
@@ -416,6 +426,7 @@ def group_entries(entries: List[LogEntry]) -> List[GroupedLogEntry]:
             last_timestamp=data['last_timestamp'],
             entry=data['entry'],
             group_message=data['group_message'],
+            custom_severity=data['custom_severity'],
             all_entries=data['all_entries']
         ))
         

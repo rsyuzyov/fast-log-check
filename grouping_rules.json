@@ -1,8 +1,54 @@
 {
-    "CS_ERR_LIBRARY (failed to connect to corosync)": "Ошибки подключения к corosync (CS_ERR_LIBRARY)",
-    "can't initialize service": "Ошибка инициализации сервиса",
-    "cmap_initialize failed": "Ошибка инициализации cmap",
-    "cpg_initialize failed": "Ошибка инициализации cpg",
-    "quorum_initialize failed": "Ошибка инициализации quorum",
-    "got unexpected replication job error": "Ошибка репликации"
+    "CS_ERR_LIBRARY (failed to connect to corosync)": {
+        "title": "Ошибки подключения к corosync (CS_ERR_LIBRARY)",
+        "severity": "error"
+    },
+    "can't initialize service": {
+        "title": "Ошибка инициализации сервиса",
+        "severity": "error"
+    },
+    "cmap_initialize failed": {
+        "title": "Ошибка инициализации cmap",
+        "severity": "error"
+    },
+    "cpg_initialize failed": {
+        "title": "Ошибка инициализации cpg",
+        "severity": "error"
+    },
+    "quorum_initialize failed": {
+        "title": "Ошибка инициализации quorum",
+        "severity": "error"
+    },
+    "got unexpected replication job error": {
+        "title": "Ошибка репликации",
+        "severity": "error"
+    },
+    "pam_unix.*auth could not identify password": {
+        "title": "Ошибки аутентификации",
+        "severity": "warning"
+    },
+    "pam_unix.*conversation failed": {
+        "title": "Ошибки аутентификации",
+        "severity": "warning"
+    },
+    "user NOT in sudoers": {
+        "title": "user NOT in sudoers",
+        "severity": "error"
+    },
+    "proxmox-mail-forward.*could not notify via target": {
+        "title": "Ошибки отправки уведомлений",
+        "severity": "warning"
+    },
+    "zfs.*taints": {
+        "title": "Предупреждения из-за лицензии ZFS",
+        "severity": "skip"
+    },
+    "loading out-of-tree module taints kernel": {
+        "title": "Предупреждения из-за лицензии ZFS",
+        "severity": "skip"
+    },
+    "Disabling lock debugging due to kernel taint": {
+        "title": "Предупреждения из-за лицензии ZFS",
+        "severity": "skip"
+    }
 }

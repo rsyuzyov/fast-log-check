@@ -329,6 +329,11 @@
             color: white;
         }
 
+        .severity-error {
+            background: #dc3545;
+            color: white;
+        }
+
         .severity-warning {
             background: #ffc107;
             color: #000;
@@ -459,8 +464,10 @@
                                         <span class="count-badge">{{ group.count }}x</span>
                                         {% endif %}
                                         {{ group.entry.type }}
-                                        <span class="error-severity severity-{{ group.entry.severity }}">{{
-                                            group.entry.severity }}</span>
+                                        <span
+                                            class="error-severity severity-{% if group.custom_severity %}{{ group.custom_severity }}{% else %}{{ group.entry.severity }}{% endif %}">{%
+                                            if group.custom_severity %}{{ group.custom_severity }}{% else %}{{
+                                            group.entry.severity }}{% endif %}</span>
                                     </span>
                                     <span class="error-time">
                                         {% if group.count > 1 and group.first_timestamp != group.last_timestamp %}
