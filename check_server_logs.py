@@ -300,33 +300,6 @@ def classify_severity(message: str, check_name: str) -> str:
     return 'critical'
 
 
-# Глобальная переменная для правил группировки
-CUSTOM_GROUPING_RULES = {}
-
-def load_grouping_rules():
-    """Загрузка правил группировки из JSON файла"""
-    global CUSTOM_GROUPING_RULES
-    
-    script_dir = Path(__file__).parent
-    rules_file = script_dir / 'grouping_rules.json'
-    
-    if rules_file.exists():
-        try:
-            with open(rules_file, 'r', encoding='utf-8') as f:
-                CUSTOM_GROUPING_RULES = json.load(f)
-        except Exception as e:
-            logging.error(f"Ошибка загрузки правил группировки: {e}")
-    else:
-        # Правила по умолчанию, если файл не найден
-        CUSTOM_GROUPING_RULES = {
-            'CS_ERR_LIBRARY (failed to connect to corosync)': 'Ошибки подключения к corosync (CS_ERR_LIBRARY)',
-            'can\'t initialize service': 'Ошибка инициализации сервиса',
-            'cmap_initialize failed': 'Ошибка инициализации cmap',
-            'cpg_initialize failed': 'Ошибка инициализации cpg',
-            'quorum_initialize failed': 'Ошибка инициализации quorum',
-        }
-
-
 def normalize_message(text: str) -> str:
     """Нормализация сообщения для группировки"""
     # IP v4
@@ -349,65 +322,9 @@ class GroupedLogEntry:
     first_timestamp: str
     last_timestamp: str
     entry: LogEntry
-    group_message: str
-    all_entries: List[LogEntry] = field(default_factory=list)
 
 
-def group_entries(entries: List[LogEntry]) -> List[GroupedLogEntry]:
-    """Группировка похожих записей"""
-    if not entries:
-        return []
-        
-    groups = {}
-    result = []
-    
-    # Сохраняем порядок появления групп
-    group_order = []
-    
-    for entry in entries:
-        # Проверяем кастомные правила группировки
-        custom_msg = None
-        for pattern, replacement in CUSTOM_GROUPING_RULES.items():
-            if pattern in entry.message:
-                custom_msg = f"{replacement} ({pattern})"
-                break
-        
-        if custom_msg:
-            norm_msg = custom_msg
-        else:
-            norm_msg = normalize_message(entry.message)
-            
-        # Ключ группировки
-        key = (entry.type, entry.severity, norm_msg)
-        
-        if key not in groups:
-            groups[key] = {
-                'count': 0,
-                'first_timestamp': entry.timestamp,
-                'last_timestamp': entry.timestamp,
-                'entry': entry,
-                'group_message': norm_msg,
-                'all_entries': []
-            }
-            group_order.append(key)
-        
-        groups[key]['count'] += 1
-        groups[key]['last_timestamp'] = entry.timestamp
-        groups[key]['all_entries'].append(entry)
-    
-    # Формируем результат
-    for key in group_order:
-        data = groups[key]
-        result.append(GroupedLogEntry(
-            count=data['count'],
-            first_timestamp=data['first_timestamp'],
-            last_timestamp=data['last_timestamp'],
-            entry=data['entry'],
-            group_message=data['group_message'],
-            all_entries=data['all_entries']
-        ))
-        
-    return result
+
 
 
 # Функции проверок
@@ -1171,7 +1088,7 @@ def generate_html_report(report: ServerReport, output_file: str):
             autoescape=select_autoescape(['html', 'xml'])
         )
         template = env.get_template('report_template.html')
-        html_content = template.render(report=report, group_entries=group_entries)
+        html_content = template.render(report=report)
     else:
         # Иначе генерируем HTML напрямую
         html_content = generate_html_inline(report)
@@ -1635,9 +1552,6 @@ def main():
     """Основная функция"""
     args = parse_arguments()
     logger = setup_logging(args.verbose)
-    
-    # Загружаем правила группировки
-    load_grouping_rules()
     
     logger.info("=" * 80)
     logger.info(f"🔍 Проверка серверов: {', '.join(args.hostnames)}")
