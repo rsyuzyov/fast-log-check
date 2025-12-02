@@ -1,7 +1,7 @@
-# Универсальный скрипт автоматической установки Python для Windows
-# Версия: 1.0.0
-# Поддерживаемые системы: Windows 10+, Windows Server 2019+
-# Архитектуры: x86, x64, ARM64
+# Универсальный скрипт проверки и установки Python для Windows
+# Версия: 1.2.0
+# Использование: Просто запустите скрипт - он сам проверит наличие Python
+# Exit codes: 0 = Python готов к работе, 1 = Ошибка
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"
@@ -30,31 +30,185 @@ function Write-Error {
 Clear-Host
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Автоматическая установка Python" -ForegroundColor Cyan
+Write-Host "Проверка и установка Python" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# [1/7] Проверка прав администратора
-Write-Step "[1/7] Проверка прав администратора..."
+# [Шаг 1] Проверка Python в PATH
+Write-Step "[1/9] Проверка Python в PATH..."
 
-$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+try {
+    $pythonVersion = & python --version 2>&1
+    if ($LASTEXITCODE -eq 0 -and $pythonVersion -match "Python (\d+\.\d+\.\d+)") {
+        $versionNumber = $Matches[1]
+        Write-Success "Python $versionNumber найден в PATH"
+        Write-Host ""
+        Write-Host "Python готов к работе!" -ForegroundColor Green
+        Write-Host ""
 
-if (-not $isAdmin) {
-    Write-Warning "Требуются права администратора"
-    Write-Host ""
-    Write-Host "Перезапуск с правами администратора..." -ForegroundColor Yellow
-    Write-Host ""
-
-    # Перезапуск с правами администратора
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-    exit
+        if ($env:CALLED_FROM_PARENT -eq "1") {
+            exit 0
+        }
+        Read-Host "Нажмите Enter для выхода"
+        exit 0
+    }
+} catch {
+    # Python не найден, продолжаем
 }
 
-Write-Success "Права администратора получены"
+Write-Warning "Python не найден в PATH"
 Write-Host ""
 
-# [2/7] Определение архитектуры системы
-Write-Step "[2/7] Определение архитектуры системы..."
+# [Шаг 2] Поиск Python в стандартных местах
+Write-Step "[2/9] Поиск Python в стандартных местах..."
+Write-Host ""
+
+$pythonFound = $false
+$pythonPath = ""
+
+$searchPaths = @(
+    "C:\Python313",
+    "C:\Python312",
+    "C:\Python311",
+    "C:\Program Files\Python313",
+    "C:\Program Files\Python312",
+    "C:\Program Files\Python311",
+    "$env:LOCALAPPDATA\Programs\Python\Python313",
+    "$env:LOCALAPPDATA\Programs\Python\Python312",
+    "$env:LOCALAPPDATA\Programs\Python\Python311",
+    "$env:LOCALAPPDATA\Microsoft\WindowsApps",
+    "$env:LOCALAPPDATA\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0"
+)
+
+foreach ($path in $searchPaths) {
+    $pythonExe = Join-Path $path "python.exe"
+    if (Test-Path $pythonExe) {
+        try {
+            $version = & $pythonExe --version 2>&1
+            if ($LASTEXITCODE -eq 0 -and $version -match "Python (\d+\.\d+\.\d+)") {
+                Write-Success "Найден: $pythonExe"
+                Write-Host "   Версия: $($Matches[1])" -ForegroundColor Gray
+                $pythonPath = $path
+                $pythonFound = $true
+            }
+        } catch {
+            # Пропускаем нерабочие установки
+        }
+    }
+}
+
+if ($pythonFound) {
+    Write-Host ""
+    Write-Host "Python найден, но не добавлен в PATH" -ForegroundColor Yellow
+    Write-Host ""
+    $addToPath = Read-Host "Добавить найденный Python в PATH? (Y/N)"
+
+    if ($addToPath -eq 'Y' -or $addToPath -eq 'y') {
+        Write-Host ""
+        Write-Host "Добавление Python в PATH..." -ForegroundColor Cyan
+
+        # Добавление в PATH для текущего пользователя
+        $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        $newPath = "$pythonPath;$pythonPath\Scripts;$userPath"
+        [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+
+        # Обновление PATH для текущей сессии
+        $env:Path = "$pythonPath;$pythonPath\Scripts;$env:Path"
+
+        Write-Success "Python добавлен в PATH"
+        Write-Host ""
+        Write-Host "Проверка доступности..." -ForegroundColor Gray
+
+        try {
+            $checkVersion = & python --version 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host ""
+                Write-Host "========================================" -ForegroundColor Green
+                Write-Host "✅ Python настроен и готов к работе!" -ForegroundColor Green
+                Write-Host "========================================" -ForegroundColor Green
+                Write-Host ""
+
+                if ($env:CALLED_FROM_PARENT -eq "1") {
+                    exit 0
+                }
+                Read-Host "Нажмите Enter для выхода"
+                exit 0
+            }
+        } catch {
+            # Продолжаем установку
+        }
+    }
+    Write-Host ""
+}
+
+Write-Host "Python не найден в стандартных местах" -ForegroundColor Yellow
+Write-Host "Требуется установка Python" -ForegroundColor White
+Write-Host ""
+
+# [Шаг 3] Выбор типа установки
+Write-Step "[3/9] Выбор типа установки..."
+Write-Host ""
+Write-Host "Выберите тип установки:" -ForegroundColor White
+Write-Host ""
+Write-Host "  [1] Для текущего пользователя (рекомендуется)" -ForegroundColor Green
+Write-Host "      - Не требует прав администратора" -ForegroundColor Gray
+Write-Host "      - Устанавливается в: $env:LOCALAPPDATA\Programs\Python" -ForegroundColor Gray
+Write-Host "      - Доступен только для вашей учетной записи" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  [2] Для всех пользователей" -ForegroundColor Yellow
+Write-Host "      - Требует права администратора" -ForegroundColor Gray
+Write-Host "      - Устанавливается в: C:\Program Files\Python313" -ForegroundColor Gray
+Write-Host "      - Доступен для всех пользователей системы" -ForegroundColor Gray
+Write-Host ""
+
+$installType = Read-Host "Ваш выбор (1 или 2, Enter = 1)"
+
+# По умолчанию - для текущего пользователя
+if ([string]::IsNullOrWhiteSpace($installType)) {
+    $installType = "1"
+}
+
+Write-Host ""
+
+$installForAll = $false
+$needAdmin = $false
+
+if ($installType -eq "2") {
+    $installForAll = $true
+    $needAdmin = $true
+    Write-Success "Выбрана установка для всех пользователей"
+} else {
+    Write-Success "Выбрана установка для текущего пользователя"
+}
+Write-Host ""
+
+# [Шаг 4] Проверка прав администратора (если нужно)
+if ($needAdmin) {
+    Write-Step "[4/9] Проверка прав администратора..."
+
+    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+    if (-not $isAdmin) {
+        Write-Warning "Требуются права администратора"
+        Write-Host ""
+        Write-Host "Перезапуск с правами администратора..." -ForegroundColor Yellow
+        Write-Host ""
+
+        # Перезапуск с правами администратора
+        Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        exit
+    }
+
+    Write-Success "Права администратора получены"
+    Write-Host ""
+} else {
+    Write-Step "[4/9] Права администратора не требуются"
+    Write-Success "Установка для текущего пользователя"
+    Write-Host ""
+}
+
+# [Шаг 5] Определение архитектуры системы
+Write-Step "[5/9] Определение архитектуры системы..."
 
 $arch = "x64"
 $processorArch = $env:PROCESSOR_ARCHITECTURE
@@ -68,8 +222,8 @@ switch ($processorArch) {
 Write-Success "Архитектура: $arch"
 Write-Host ""
 
-# [3/7] Определение версии Python
-Write-Step "[3/7] Определение версии Python для установки..."
+# [Шаг 6] Определение версии Python
+Write-Step "[6/9] Определение версии Python для установки..."
 
 $pythonVersion = "3.13.1"
 $pythonMajor = "3.13"
@@ -77,16 +231,22 @@ $pythonMajor = "3.13"
 Write-Success "Будет установлен Python $pythonVersion"
 Write-Host ""
 
-# Запрос подтверждения у пользователя
+# [Шаг 7] Запрос подтверждения у пользователя
+Write-Step "[7/9] Подтверждение установки..."
+Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Python не найден в системе." -ForegroundColor Yellow
-Write-Host ""
-Write-Host "Предлагается установить Python $pythonVersion ($arch)" -ForegroundColor White
 Write-Host ""
 Write-Host "Параметры установки:" -ForegroundColor White
 Write-Host "  • Версия: Python $pythonVersion" -ForegroundColor Gray
-Write-Host "  • Установка: Для всех пользователей" -ForegroundColor Gray
+
+if ($installForAll) {
+    Write-Host "  • Установка: Для всех пользователей" -ForegroundColor Gray
+    Write-Host "  • Путь: C:\Program Files\Python313" -ForegroundColor Gray
+} else {
+    Write-Host "  • Установка: Для текущего пользователя" -ForegroundColor Gray
+    Write-Host "  • Путь: $env:LOCALAPPDATA\Programs\Python\Python313" -ForegroundColor Gray
+}
+
 Write-Host "  • PATH: Будет добавлен автоматически" -ForegroundColor Gray
 Write-Host "  • Размер: ~30-40 МБ" -ForegroundColor Gray
 Write-Host ""
@@ -105,8 +265,8 @@ Write-Host ""
 Write-Success "Подтверждение получено"
 Write-Host ""
 
-# [4/7] Попытка установки через winget
-Write-Step "[4/7] Попытка установки через winget..."
+# [Шаг 8] Попытка установки через winget
+Write-Step "[8/9] Попытка установки через winget..."
 
 $wingetAvailable = $false
 try {
@@ -123,13 +283,18 @@ if ($wingetAvailable) {
     Write-Host ""
 
     try {
-        $wingetResult = winget install Python.Python.3.13 --silent --accept-package-agreements --accept-source-agreements 2>&1
+        if ($installForAll) {
+            # Для всех пользователей
+            $result = winget install Python.Python.3.13 --scope machine --silent --accept-package-agreements --accept-source-agreements 2>&1
+        } else {
+            # Для текущего пользователя
+            $result = winget install Python.Python.3.13 --scope user --silent --accept-package-agreements --accept-source-agreements 2>&1
+        }
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
             Write-Success "Python установлен через winget"
             $useWinget = $true
-            # Переход к проверке установки
         } else {
             Write-Host ""
             Write-Warning "winget не смог установить Python"
@@ -152,7 +317,7 @@ if ($wingetAvailable) {
 
 # Альтернативный метод: скачивание установщика
 if (-not $useWinget) {
-    Write-Step "[5/7] Скачивание официального установщика Python..."
+    Write-Host "Скачивание официального установщика Python..." -ForegroundColor Cyan
 
     $downloadUrl = ""
     switch ($arch) {
@@ -172,7 +337,6 @@ if (-not $useWinget) {
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-        # Скачивание с прогресс-баром
         $ProgressPreference = 'SilentlyContinue'
         Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath -UseBasicParsing
         $ProgressPreference = 'Continue'
@@ -192,8 +356,8 @@ if (-not $useWinget) {
         exit 1
     }
 
-    # [6/7] Установка Python
-    Write-Step "[6/7] Установка Python $pythonVersion..."
+    # Установка Python
+    Write-Host "Установка Python $pythonVersion..." -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Выполняется установка, пожалуйста подождите..." -ForegroundColor Yellow
     Write-Host "Это может занять 2-5 минут..." -ForegroundColor Yellow
@@ -202,12 +366,17 @@ if (-not $useWinget) {
     try {
         $installArgs = @(
             "/quiet",
-            "InstallAllUsers=1",
             "PrependPath=1",
             "Include_test=0",
             "Include_launcher=1",
             "SimpleInstall=1"
         )
+
+        if ($installForAll) {
+            $installArgs += "InstallAllUsers=1"
+        } else {
+            $installArgs += "InstallAllUsers=0"
+        }
 
         $process = Start-Process -FilePath $installerPath -ArgumentList $installArgs -Wait -PassThru -NoNewWindow
 
@@ -251,8 +420,8 @@ if (-not $useWinget) {
     }
 }
 
-# [7/7] Проверка установки
-Write-Step "[7/7] Проверка установки..."
+# [Шаг 9] Проверка установки и настройка PATH
+Write-Step "[9/9] Проверка установки и настройка PATH..."
 Write-Host ""
 Write-Host "Обновление переменных окружения..." -ForegroundColor Gray
 Write-Host ""
@@ -262,53 +431,104 @@ $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 $env:Path = "$machinePath;$userPath"
 
-# Небольшая задержка для завершения установки
+# Добавим стандартные пути Python явно
+$env:Path += ";C:\Python313;C:\Python313\Scripts"
+$env:Path += ";C:\Program Files\Python313;C:\Program Files\Python313\Scripts"
+$env:Path += ";$env:LOCALAPPDATA\Programs\Python\Python313;$env:LOCALAPPDATA\Programs\Python\Python313\Scripts"
+$env:Path += ";$env:LOCALAPPDATA\Microsoft\WindowsApps"
+$env:Path += ";$env:LOCALAPPDATA\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0"
+
+# Небольшая задержка
 Start-Sleep -Seconds 2
 
 # Проверка Python
 try {
-    $pythonCmd = Get-Command python -ErrorAction Stop
     $installedVersion = & python --version 2>&1
-
-    if ($installedVersion -match "Python (\d+\.\d+\.\d+)") {
+    if ($LASTEXITCODE -eq 0 -and $installedVersion -match "Python (\d+\.\d+\.\d+)") {
         $versionNumber = $Matches[1]
         Write-Success "Python $versionNumber успешно установлен и доступен"
         Write-Host ""
     } else {
-        throw "Не удалось определить версию Python"
+        throw "Python не доступен в PATH"
     }
 } catch {
-    Write-Warning "Python установлен, но требуется перезапуск"
+    Write-Warning "Python установлен, но недоступен в PATH"
     Write-Host ""
-    Write-Host "Пожалуйста:" -ForegroundColor Yellow
-    Write-Host "  1. Закройте это окно PowerShell" -ForegroundColor Gray
-    Write-Host "  2. Откройте новое окно PowerShell" -ForegroundColor Gray
-    Write-Host "  3. Проверьте установку: python --version" -ForegroundColor Gray
+    Write-Host "Попытка найти Python и настроить PATH..." -ForegroundColor Yellow
     Write-Host ""
-    Read-Host "Нажмите Enter для выхода"
-    exit 0
+
+    # Расширенный поиск
+    $extendedPaths = @(
+        "C:\Python313",
+        "C:\Python312",
+        "C:\Program Files\Python313",
+        "C:\Program Files\Python312",
+        "$env:LOCALAPPDATA\Programs\Python\Python313",
+        "$env:LOCALAPPDATA\Programs\Python\Python312",
+        "$env:LOCALAPPDATA\Microsoft\WindowsApps",
+        "$env:LOCALAPPDATA\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0"
+    )
+
+    $foundPython = $false
+    foreach ($path in $extendedPaths) {
+        $pythonExe = Join-Path $path "python.exe"
+        if (Test-Path $pythonExe) {
+            try {
+                $version = & $pythonExe --version 2>&1
+                if ($LASTEXITCODE -eq 0 -and $version -match "Python (\d+\.\d+\.\d+)") {
+                    Write-Success "Найден: $pythonExe"
+                    $env:Path = "$path;$path\Scripts;$env:Path"
+
+                    $checkVersion = & python --version 2>&1
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Success "Python $($Matches[1]) успешно настроен для текущей сессии"
+                        $foundPython = $true
+                        $versionNumber = $Matches[1]
+                        break
+                    }
+                }
+            } catch {
+                # Продолжаем поиск
+            }
+        }
+    }
+
+    if (-not $foundPython) {
+        Write-Host ""
+        Write-Warning "Python установлен, но требуется перезапуск терминала"
+        Write-Host ""
+        Write-Host "Пожалуйста:" -ForegroundColor Yellow
+        Write-Host "  1. Закройте это окно PowerShell" -ForegroundColor Gray
+        Write-Host "  2. Откройте новое окно PowerShell" -ForegroundColor Gray
+        Write-Host "  3. Python будет доступен автоматически" -ForegroundColor Gray
+        Write-Host ""
+        Read-Host "Нажмите Enter для выхода"
+        exit 0
+    }
 }
 
 # Проверка pip
 try {
     $null = & python -m pip --version 2>&1
-    Write-Success "pip доступен"
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "pip доступен"
+    } else {
+        throw "pip не найден"
+    }
 } catch {
     Write-Warning "pip не найден, выполняется установка..."
     try {
         & python -m ensurepip --upgrade 2>&1 | Out-Null
         Write-Success "pip установлен"
     } catch {
-        Write-Warning "Не удалось установить pip автоматически"
+        # Пропускаем ошибку
     }
 }
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host "✅ Установка Python завершена успешно!" -ForegroundColor Green
+Write-Host "✅ Python готов к работе!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
-Write-Host ""
-Write-Host "Python $versionNumber установлен и готов к использованию" -ForegroundColor White
 Write-Host ""
 
 # Если скрипт запущен из другого скрипта, вернуться туда

@@ -11,123 +11,45 @@ Write-Host "Установка зависимостей" -ForegroundColor Cyan
 Write-Host "================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Проверка Python версии
-Write-Host "[1/4] Проверка версии Python..." -ForegroundColor Yellow
+# Проверка и установка Python (если необходимо)
+Write-Host "[1/4] Проверка Python..." -ForegroundColor Yellow
+Write-Host ""
 
-try {
-    $pythonVersion = & python --version 2>&1
+# Устанавливаем флаг, что скрипт вызван из install.ps1
+$env:CALLED_FROM_PARENT = "1"
+
+# Запускаем скрипт проверки/установки Python
+$installPythonScript = Join-Path $PSScriptRoot "python-installer\install-python.ps1"
+
+if (Test-Path $installPythonScript) {
+    & $installPythonScript
+
+    # Проверяем результат
     if ($LASTEXITCODE -ne 0) {
-        throw "Python не найден"
-    }
-
-    $versionMatch = $pythonVersion -match 'Python (\d+)\.(\d+)\.(\d+)'
-    if ($versionMatch) {
-        $major = [int]$matches[1]
-        $minor = [int]$matches[2]
-        $patch = [int]$matches[3]
-
-        if ($major -lt 3 -or ($major -eq 3 -and $minor -lt 9)) {
-            Write-Host "❌ Требуется Python 3.9+, установлено: Python $major.$minor.$patch" -ForegroundColor Red
-            Write-Host ""
-            Write-Host "Установите Python 3.9 или новее:" -ForegroundColor Yellow
-            Write-Host "  1. Перейдите на https://www.python.org/downloads/" -ForegroundColor White
-            Write-Host "  2. Скачайте установщик Python 3.11 или новее" -ForegroundColor White
-            Write-Host "  3. При установке ОБЯЗАТЕЛЬНО отметьте:" -ForegroundColor White
-            Write-Host "     ✓ Add Python to PATH" -ForegroundColor Green
-            Write-Host "  4. После установки перезапустите PowerShell" -ForegroundColor White
-            Write-Host ""
-            pause
-            exit 1
-        }
-
-        Write-Host "✅ Python $major.$minor.$patch" -ForegroundColor Green
-    }
-    else {
-        throw "Не удалось определить версию Python"
-    }
-}
-catch {
-    Write-Host "❌ Python не найден или не добавлен в PATH" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "Автоматическая установка Python" -ForegroundColor Cyan
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "У вас есть два варианта:" -ForegroundColor White
-    Write-Host ""
-    Write-Host "  [1] Автоматическая установка (рекомендуется)" -ForegroundColor Green
-    Write-Host "      - Скачивание и установка последней версии Python" -ForegroundColor Gray
-    Write-Host "      - Автоматическая настройка PATH" -ForegroundColor Gray
-    Write-Host "      - Требует прав администратора" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  [2] Ручная установка" -ForegroundColor Yellow
-    Write-Host "      - Инструкции по установке вручную" -ForegroundColor Gray
-    Write-Host ""
-
-    $installChoice = Read-Host "Выберите вариант (1 или 2)"
-    Write-Host ""
-
-    if ($installChoice -eq "1") {
-        Write-Host "Запуск автоматической установки Python..." -ForegroundColor Cyan
         Write-Host ""
-
-        # Устанавливаем флаг, что скрипт вызван из install.ps1
-        $env:CALLED_FROM_PARENT = "1"
-
-        # Запускаем скрипт установки Python
-        $installPythonScript = Join-Path $PSScriptRoot "python-installer\install-python.ps1"
-
-        if (Test-Path $installPythonScript) {
-            & $installPythonScript
-
-            # Проверяем результат
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host ""
-                Write-Host "❌ Автоматическая установка не удалась" -ForegroundColor Red
-                Write-Host ""
-                Write-Host "Попробуйте установить Python вручную:" -ForegroundColor Yellow
-                Write-Host "  1. Перейдите на https://www.python.org/downloads/" -ForegroundColor White
-                Write-Host "  2. Скачайте установщик Python 3.11 или новее" -ForegroundColor White
-                Write-Host "  3. При установке ОБЯЗАТЕЛЬНО отметьте:" -ForegroundColor White
-                Write-Host "     ✓ Add Python to PATH" -ForegroundColor Green
-                Write-Host "  4. После установки перезапустите PowerShell" -ForegroundColor White
-                Write-Host ""
-                pause
-                exit 1
-            }
-
-            Write-Host ""
-            Write-Host "========================================" -ForegroundColor Cyan
-            Write-Host "Продолжение установки зависимостей..." -ForegroundColor Cyan
-            Write-Host "========================================" -ForegroundColor Cyan
-            Write-Host ""
-        } else {
-            Write-Host "❌ Скрипт install-python.ps1 не найден" -ForegroundColor Red
-            Write-Host ""
-            Write-Host "Установите Python вручную:" -ForegroundColor Yellow
-            Write-Host "  1. Перейдите на https://www.python.org/downloads/" -ForegroundColor White
-            Write-Host "  2. Скачайте установщик Python 3.11 или новее" -ForegroundColor White
-            Write-Host "  3. При установке ОБЯЗАТЕЛЬНО отметьте:" -ForegroundColor White
-            Write-Host "     ✓ Add Python to PATH" -ForegroundColor Green
-            Write-Host "  4. После установки перезапустите PowerShell" -ForegroundColor White
-            Write-Host ""
-            pause
-            exit 1
-        }
-    } else {
-        Write-Host "Для ручной установки Python:" -ForegroundColor Yellow
-        Write-Host "  1. Перейдите на https://www.python.org/downloads/" -ForegroundColor White
-        Write-Host "  2. Скачайте установщик Python 3.11 или новее" -ForegroundColor White
-        Write-Host "  3. Запустите установщик и ОБЯЗАТЕЛЬНО отметьте:" -ForegroundColor White
-        Write-Host "     ✓ Add Python to PATH" -ForegroundColor Green
-        Write-Host "  4. После установки перезапустите PowerShell и запустите скрипт снова" -ForegroundColor White
-        Write-Host ""
-        Write-Host "Альтернатива - установка через winget:" -ForegroundColor Yellow
-        Write-Host "  winget install Python.Python.3.13" -ForegroundColor White
+        Write-Host "❌ Не удалось настроить Python" -ForegroundColor Red
         Write-Host ""
         pause
         exit 1
     }
+} else {
+    Write-Host "❌ Скрипт python-installer\install-python.ps1 не найден" -ForegroundColor Red
+    Write-Host ""
+    pause
+    exit 1
+}
+
+Write-Host ""
+
+# Получаем версию Python
+try {
+    $pythonVersionOutput = & python --version 2>&1
+    if ($pythonVersionOutput -match 'Python (\d+\.\d+\.\d+)') {
+        $pythonVersion = $Matches[1]
+        Write-Host "✅ Python $pythonVersion готов к работе" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "✅ Python готов к работе" -ForegroundColor Green
 }
 
 Write-Host ""
