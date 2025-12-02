@@ -32,7 +32,9 @@ python .\check_server_logs.py srv-hv1.ag.local srv-hv2.ag.local
 
 # Пример отчета
 
-**📊 [Открыть пример отчета](https://htmlpreview.github.io/?https://github.com/rsyuzyov/fastlogcheck/blob/main/docs/example-report.html)**
+![Пример отчета](docs/screenshot-example.png)
+
+**📊 [Открыть интерактивный отчет](https://htmlpreview.github.io/?https://github.com/rsyuzyov/fastlogcheck/blob/main/docs/example-report.html)**
 
 ---
 
