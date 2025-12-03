@@ -60,6 +60,7 @@ def parse_arguments() -> argparse.Namespace:
 Примеры использования:
   %(prog)s server1.example.com
   %(prog)s server1.example.com server2.example.com server3.example.com --period 48
+  %(prog)s --file servers.txt --period 48
   %(prog)s server1.example.com --cleanup-threshold 85 --verbose
   %(prog)s server1.example.com --output custom_report.html
         """
@@ -67,8 +68,15 @@ def parse_arguments() -> argparse.Namespace:
     
     parser.add_argument(
         'hostnames',
-        nargs='+',
+        nargs='*',
         help='Один или несколько хостов для проверки'
+    )
+    
+    parser.add_argument(
+        '--file',
+        type=str,
+        default=None,
+        help='Файл со списком серверов (по одному на строку)'
     )
     
     parser.add_argument(
@@ -133,6 +141,24 @@ def parse_arguments() -> argparse.Namespace:
     )
     
     return parser.parse_args()
+
+
+def read_servers_from_file(filepath: str) -> List[str]:
+    """Чтение списка серверов из файла"""
+    servers = []
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for line in f:
+                # Удаляем пробелы и переводы строк
+                line = line.strip()
+                # Игнорируем пустые строки и комментарии
+                if line and not line.startswith('#'):
+                    servers.append(line)
+        return servers
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Файл не найден: {filepath}")
+    except Exception as e:
+        raise Exception(f"Ошибка при чтении файла {filepath}: {e}")
 
 
 # Дата-классы для хранения результатов
@@ -1676,15 +1702,49 @@ def main():
     # Загружаем правила группировки
     load_grouping_rules()
     
+    # Собираем список серверов из разных источников
+    hostnames = []
+    
+    # Добавляем серверы из командной строки
+    if args.hostnames:
+        hostnames.extend(args.hostnames)
+    
+    # Добавляем серверы из файла
+    if args.file:
+        try:
+            file_servers = read_servers_from_file(args.file)
+            hostnames.extend(file_servers)
+            logger.info(f"📄 Загружено {len(file_servers)} серверов из файла: {args.file}")
+        except Exception as e:
+            logger.error(f"❌ Ошибка при чтении файла серверов: {e}")
+            sys.exit(1)
+    
+    # Проверяем, что указан хотя бы один сервер
+    if not hostnames:
+        logger.error("❌ Не указаны серверы для проверки!")
+        logger.error("   Используйте: python check_server_logs.py server1.example.com")
+        logger.error("   Или:         python check_server_logs.py --file servers.txt")
+        sys.exit(1)
+    
+    # Удаляем дубликаты, сохраняя порядок
+    seen = set()
+    unique_hostnames = []
+    for hostname in hostnames:
+        if hostname not in seen:
+            seen.add(hostname)
+            unique_hostnames.append(hostname)
+    
+    hostnames = unique_hostnames
+    
     logger.info("=" * 80)
-    logger.info(f"🔍 Проверка серверов: {', '.join(args.hostnames)}")
+    logger.info(f"🔍 Проверка серверов: {', '.join(hostnames)}")
     logger.info(f"⏱️  Период: последние {args.period} часов")
     logger.info("=" * 80)
     
     # Проверяем каждый сервер
     reports = []
     
-    for hostname in args.hostnames:
+    for hostname in hostnames:
         try:
             report = check_server(hostname, args)
             reports.append(report)

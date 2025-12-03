@@ -3,16 +3,17 @@
 ## Параметры командной строки
 
 ```
-usage: check_server_logs.py [-h] [--period PERIOD] [--output OUTPUT]
+usage: check_server_logs.py [-h] [--file FILE] [--period PERIOD] [--output OUTPUT]
                            [--cleanup-threshold N] [--parallel N]
                            [--ssh-config SSH_CONFIG] [--ssh-user SSH_USER]
                            [--ssh-timeout SSH_TIMEOUT] [--verbose] [--json]
-                           hostnames [hostnames ...]
+                           [hostnames ...]
 
 Аргументы:
   hostnames                Один или несколько хостов для проверки
 
 Опции:
+  --file FILE              Файл со списком серверов (по одному на строку)
   --period PERIOD          Период анализа в часах (по умолчанию: 24)
   --output OUTPUT          Имя выходного файла (по умолчанию: report_HOSTNAME_YYYY-MM-DD_HH-MM.html)
   --cleanup-threshold N    Автоочистка ZFS при превышении N% (по умолчанию: выключено)
@@ -37,6 +38,32 @@ usage: check_server_logs.py [-h] [--period PERIOD] [--output OUTPUT]
 
 # Проверка за последние 48 часов
 ./check_server_logs.py server1.example.com --period 48 --ssh-config ~/.ssh/config
+```
+
+### Использование файла со списком серверов
+
+Создайте текстовый файл `servers.txt`:
+
+```text
+# Список серверов для проверки
+# Строки начинающиеся с # игнорируются
+
+srv-hv1.ag.local
+srv-hv2.ag.local
+srv-hv3.ag.local
+```
+
+Запуск проверки:
+
+```bash
+# Проверка серверов из файла
+./check_server_logs.py --file servers.txt --ssh-config ~/.ssh/config
+
+# Комбинирование файла и командной строки
+./check_server_logs.py server4.example.com --file servers.txt --ssh-config ~/.ssh/config
+
+# С дополнительными параметрами
+./check_server_logs.py --file servers.txt --period 48 --cleanup-threshold 85 --ssh-config ~/.ssh/config
 ```
 
 ### С автоочисткой ZFS
@@ -223,6 +250,26 @@ usage: check_server_logs.py [-h] [--period PERIOD] [--output OUTPUT]
 ## Сценарии использования
 
 ### Ежедневная проверка серверов
+
+**Вариант 1: С использованием файла серверов**
+
+```bash
+#!/bin/bash
+# daily_check.sh
+
+SERVERS_FILE="/opt/monitoring/servers.txt"
+REPORT_DIR="/var/www/html/reports"
+SSH_CONFIG="$HOME/.ssh/config"
+
+cd /opt/monitoring
+
+./check_server_logs.py --file "$SERVERS_FILE" \
+  --ssh-config "$SSH_CONFIG" \
+  --period 24 \
+  --cleanup-threshold 85
+```
+
+**Вариант 2: С явным указанием серверов**
 
 ```bash
 #!/bin/bash

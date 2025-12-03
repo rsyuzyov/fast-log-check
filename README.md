@@ -7,39 +7,26 @@
 
 ## Установка
 
-**Linux:**
+**Linux:** ```./install.sh```
 
-```bash
-./install.sh
-```
+**Windows:** ```install.bat```
 
-**Windows:**
+## Использование
 
-```cmd
-install.bat
-```
-
-или
-
-```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1
-```
-
-# Использование
-
-**Linux:**
-
-```bash
-python3 ./check_server_logs.py server1.example.com server2.example.com
-```
-
-**Windows:**
-
+Все примеры для windows, линуксоиды и так все знают.  
+**Список серверов в командной строке:**
 ```powershell
 python .\check_server_logs.py server1.example.com server2.example.com
 ```
 
-📚 **Подробности см. в [USAGE.md](USAGE.md)**
+**Список серверов в файле:**
+```powershell
+python .\check_server_logs.py --file servers.txt
+```
+
+Можно комбинировать оба способа
+
+**Подробности см. в [USAGE.md](USAGE.md)**
 
 ## Проверяемые источники логов
 
