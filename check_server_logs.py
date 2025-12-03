@@ -9,6 +9,7 @@ import logging
 import sys
 import json
 import re
+import getpass
 from datetime import datetime, timedelta
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -80,6 +81,12 @@ def parse_arguments() -> argparse.Namespace:
     )
     
     parser.add_argument(
+        '--use-ssh-config',
+        action='store_true',
+        help='Использовать список хостов из SSH конфига'
+    )
+    
+    parser.add_argument(
         '--period',
         type=int,
         default=24,
@@ -129,6 +136,12 @@ def parse_arguments() -> argparse.Namespace:
     )
     
     parser.add_argument(
+        '--ask-password',
+        action='store_true',
+        help='Запросить пароль для SSH подключения (безопасный ввод)'
+    )
+    
+    parser.add_argument(
         '--verbose',
         action='store_true',
         help='Подробный вывод в консоль'
@@ -159,6 +172,44 @@ def read_servers_from_file(filepath: str) -> List[str]:
         raise FileNotFoundError(f"Файл не найден: {filepath}")
     except Exception as e:
         raise Exception(f"Ошибка при чтении файла {filepath}: {e}")
+
+
+def read_hosts_from_ssh_config(ssh_config_path: Optional[str] = None) -> List[str]:
+    """Чтение списка хостов из SSH конфига"""
+    hosts = []
+    
+    try:
+        # Определяем путь к SSH конфигу
+        if ssh_config_path is None:
+            config_path = Path.home() / '.ssh' / 'config'
+        else:
+            config_path = Path(ssh_config_path).expanduser()
+        
+        if not config_path.exists():
+            raise FileNotFoundError(f"SSH конфиг не найден: {config_path}")
+        
+        # Парсим SSH конфиг
+        ssh_config = paramiko.SSHConfig()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            ssh_config.parse(f)
+        
+        # Извлекаем все хосты из конфига
+        # В paramiko SSHConfig хосты хранятся в _config
+        if hasattr(ssh_config, '_config'):
+            for host_config in ssh_config._config:
+                if 'host' in host_config:
+                    host_patterns = host_config['host']
+                    for pattern in host_patterns:
+                        # Игнорируем wildcards и специальные паттерны
+                        if '*' not in pattern and '?' not in pattern and pattern != '':
+                            hosts.append(pattern)
+        
+        return hosts
+        
+    except FileNotFoundError:
+        raise
+    except Exception as e:
+        raise Exception(f"Ошибка при чтении SSH конфига: {e}")
 
 
 # Дата-классы для хранения результатов
@@ -203,7 +254,8 @@ class SSHConnection:
     """Управление SSH соединением"""
     
     def __init__(self, hostname: str, username: str = 'root',
-                 ssh_config: Optional[str] = None, timeout: int = 30):
+                 ssh_config: Optional[str] = None, timeout: int = 30,
+                 password: Optional[str] = None):
         self.hostname = hostname
         self.username = username
         # Если конфиг не указан, пытаемся использовать стандартный
@@ -213,6 +265,7 @@ class SSHConnection:
                 ssh_config = str(default_config)
         self.ssh_config = ssh_config
         self.timeout = timeout
+        self.password = password
         self.client = None
         self.logger = logging.getLogger(f'SSH[{hostname}]')
     
@@ -226,9 +279,17 @@ class SSHConnection:
                 'hostname': self.hostname,
                 'username': self.username,
                 'timeout': self.timeout,
-                'look_for_keys': True,
-                'allow_agent': True,
             }
+            
+            # Если указан пароль - используем аутентификацию по паролю
+            if self.password:
+                connect_kwargs['password'] = self.password
+                connect_kwargs['look_for_keys'] = False
+                connect_kwargs['allow_agent'] = False
+            else:
+                # Иначе используем аутентификацию по ключу
+                connect_kwargs['look_for_keys'] = True
+                connect_kwargs['allow_agent'] = True
             
             # Если указан SSH config, используем его
             if self.ssh_config:
@@ -247,7 +308,8 @@ class SSHConnection:
                         connect_kwargs['username'] = host_config['user']
                     if 'port' in host_config:
                         connect_kwargs['port'] = int(host_config['port'])
-                    if 'identityfile' in host_config:
+                    # Если используем пароль, не применяем ключи из конфига
+                    if 'identityfile' in host_config and not self.password:
                         connect_kwargs['key_filename'] = host_config['identityfile']
             
             self.client.connect(**connect_kwargs)
@@ -1133,7 +1195,8 @@ def check_server(hostname: str, args: argparse.Namespace) -> ServerReport:
         hostname=hostname,
         username=args.ssh_user,
         ssh_config=args.ssh_config,
-        timeout=args.ssh_timeout
+        timeout=args.ssh_timeout,
+        password=getattr(args, 'password', None)
     )
     
     success, error = ssh.connect()
@@ -1719,11 +1782,23 @@ def main():
             logger.error(f"❌ Ошибка при чтении файла серверов: {e}")
             sys.exit(1)
     
+    # Добавляем серверы из SSH конфига
+    if args.use_ssh_config:
+        try:
+            ssh_hosts = read_hosts_from_ssh_config(args.ssh_config)
+            hostnames.extend(ssh_hosts)
+            config_path = args.ssh_config if args.ssh_config else "~/.ssh/config"
+            logger.info(f"🔧 Загружено {len(ssh_hosts)} хостов из SSH конфига: {config_path}")
+        except Exception as e:
+            logger.error(f"❌ Ошибка при чтении SSH конфига: {e}")
+            sys.exit(1)
+    
     # Проверяем, что указан хотя бы один сервер
     if not hostnames:
         logger.error("❌ Не указаны серверы для проверки!")
         logger.error("   Используйте: python check_server_logs.py server1.example.com")
         logger.error("   Или:         python check_server_logs.py --file servers.txt")
+        logger.error("   Или:         python check_server_logs.py --use-ssh-config")
         sys.exit(1)
     
     # Удаляем дубликаты, сохраняя порядок
@@ -1735,6 +1810,21 @@ def main():
             unique_hostnames.append(hostname)
     
     hostnames = unique_hostnames
+    
+    # Запрашиваем пароль если нужно
+    if args.ask_password:
+        try:
+            password = getpass.getpass(f"🔐 Введите пароль SSH для {args.ssh_user}@servers: ")
+            if not password:
+                logger.error("❌ Пароль не может быть пустым!")
+                sys.exit(1)
+            # Сохраняем пароль в args для передачи в check_server
+            args.password = password
+        except KeyboardInterrupt:
+            logger.warning("\n⚠️  Отменено пользователем")
+            sys.exit(1)
+    else:
+        args.password = None
     
     logger.info("=" * 80)
     logger.info(f"🔍 Проверка серверов: {', '.join(hostnames)}")

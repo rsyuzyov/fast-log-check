@@ -13,18 +13,14 @@
 
 ## Использование
 
+Можно комбинировать указание серверов в командной строке и файле.  
+Для авторизации по паролю используется флаг `--ask-password`.  
 Все примеры для windows, линуксоиды и так все знают.  
-**Список серверов в командной строке:**
 ```powershell
 python .\check_server_logs.py server1.example.com server2.example.com
-```
-
-**Список серверов в файле:**
-```powershell
 python .\check_server_logs.py --file servers.txt
+python .\check_server_logs.py server1.example.com --file servers.txt --ask-password
 ```
-
-Можно комбинировать оба способа
 
 **Подробности см. в [USAGE.md](USAGE.md)**
 

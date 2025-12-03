@@ -6,7 +6,8 @@
 usage: check_server_logs.py [-h] [--file FILE] [--period PERIOD] [--output OUTPUT]
                            [--cleanup-threshold N] [--parallel N]
                            [--ssh-config SSH_CONFIG] [--ssh-user SSH_USER]
-                           [--ssh-timeout SSH_TIMEOUT] [--verbose] [--json]
+                           [--ssh-timeout SSH_TIMEOUT] [--ask-password]
+                           [--verbose] [--json]
                            [hostnames ...]
 
 Аргументы:
@@ -14,6 +15,7 @@ usage: check_server_logs.py [-h] [--file FILE] [--period PERIOD] [--output OUTPU
 
 Опции:
   --file FILE              Файл со списком серверов (по одному на строку)
+  --use-ssh-config         Использовать список хостов из SSH конфига
   --period PERIOD          Период анализа в часах (по умолчанию: 24)
   --output OUTPUT          Имя выходного файла (по умолчанию: report_HOSTNAME_YYYY-MM-DD_HH-MM.html)
   --cleanup-threshold N    Автоочистка ZFS при превышении N% (по умолчанию: выключено)
@@ -21,6 +23,7 @@ usage: check_server_logs.py [-h] [--file FILE] [--period PERIOD] [--output OUTPU
   --ssh-config PATH        Путь к SSH конфигу (по умолчанию: системные настройки SSH)
   --ssh-user USER          Пользователь SSH (по умолчанию: root)
   --ssh-timeout SECONDS    Timeout SSH команд в секундах (по умолчанию: 30)
+  --ask-password           Запросить пароль для SSH подключения (безопасный ввод)
   --verbose               Подробный вывод в консоль
   --json                  Дополнительно сохранить результаты в JSON
 ```
@@ -65,6 +68,61 @@ srv-hv3.ag.local
 # С дополнительными параметрами
 ./check_server_logs.py --file servers.txt --period 48 --cleanup-threshold 85 --ssh-config ~/.ssh/config
 ```
+
+### Использование SSH конфига
+
+Если у вас уже настроен `~/.ssh/config`, вы можете автоматически взять список хостов оттуда.
+
+**Пример SSH конфига:**
+```text
+Host server1
+    HostName server1.example.com
+    User root
+
+Host server2
+    HostName server2.example.com
+    User admin
+```
+
+**Запуск проверки:**
+```bash
+# Проверить все хосты из ~/.ssh/config
+./check_server_logs.py --use-ssh-config
+
+# Использовать другой файл конфига
+./check_server_logs.py --use-ssh-config --ssh-config /path/to/custom/config
+```
+
+> **Примечание:** Скрипт игнорирует хосты с wildcards (например `Host *`) и специальные паттерны.
+
+### Аутентификация по паролю
+
+**Важно:** Рекомендуется использовать SSH ключи для аутентификации. Используйте пароль только если ключи недоступны.
+
+```bash
+# Безопасный ввод пароля (рекомендуется)
+./check_server_logs.py server1.example.com --ask-password
+# Пароль будет запрошен интерактивно и не будет отображаться при вводе
+# Пароль не сохраняется в истории команд
+
+# С несколькими серверами (пароль используется для всех)
+./check_server_logs.py --file servers.txt --ask-password --ssh-user admin
+
+# С дополнительными параметрами
+./check_server_logs.py server1.example.com \
+  --ask-password \
+  --ssh-user admin \
+  --period 48 \
+  --verbose
+```
+
+**Процесс работы:**
+1. Скрипт запрашивает пароль перед началом проверки
+2. Введенный пароль используется для всех серверов из списка
+3. Пароль хранится только в памяти и не сохраняется на диск
+4. Пароль не отображается при вводе и не попадает в историю команд
+
+> **Примечание о безопасности:** Если серверы имеют разные пароли, используйте SSH конфигурацию с ключами или запускайте скрипт отдельно для каждой группы серверов с одинаковым паролем.
 
 ### С автоочисткой ZFS
 
