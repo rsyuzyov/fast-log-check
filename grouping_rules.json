@@ -50,5 +50,9 @@
     "Disabling lock debugging due to kernel taint": {
         "title": "Предупреждения из-за лицензии ZFS",
         "severity": "skip"
+    },
+    "zfs-auto-snap": {
+        "title": "Ошибки zfs-auto-snap",
+        "severity": "error"
     }
 }

@@ -28,17 +28,22 @@ python .\check_server_logs.py server1.example.com --file servers.txt --ask-passw
 
 Инструмент проверяет следующие источники логов на каждом сервере:
 
+### Общие проверки
+
 1. **Системный журнал (критические)** - `journalctl --priority=err`
 2. **Системный журнал (предупреждения)** - `journalctl --priority=warning`
 3. **Лог аутентификации** - `/var/log/auth.log`
 4. **Системные сообщения ядра** - `dmesg`
 5. **Fail2ban (защита от брутфорса)** - `/var/log/fail2ban.log`
-6. **Corosync кластер** - `journalctl -u corosync`
-7. **PVE Proxy (HTTP доступ)** - `/var/log/pveproxy/access.log`
-8. **Виртуальные машины (статус)** - `qm list`
-9. **Хранилища (дисковое пространство)** - `pvesm status`
-10. **Кластер Proxmox (кворум)** - `pvecm status`
-11. **ZFS снимки** (опционально с автоочисткой) - `zfs list -t snapshot`
+6. **ZFS снимки** (опционально с автоочисткой) - `zfs list -t snapshot`
+
+### Proxmox
+
+7. **Corosync кластер** - `journalctl -u corosync`
+8. **PVE Proxy (HTTP доступ)** - `/var/log/pveproxy/access.log`
+9. **Виртуальные машины (статус)** - `qm list`
+10. **Хранилища (дисковое пространство)** - `pvesm status`
+11. **Кластер Proxmox (кворум)** - `pvecm status`
 
 ## Группировка событий
 
