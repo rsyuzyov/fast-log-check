@@ -487,12 +487,8 @@ def group_entries(entries: List[LogEntry]) -> List[GroupedLogEntry]:
         if custom_msg:
             norm_msg = custom_msg
         else:
-            # Автоматическая группировка
-            if matched_rule:
-                norm_msg = normalize_message(entry.message)
-            else:
-                # Группа "Прочее" для негруппированных событий
-                norm_msg = "Прочее"
+            # Автоматическая группировка для всех остальных событий
+            norm_msg = normalize_message(entry.message)
             
         # Ключ группировки
         key = (entry.type, entry.severity, norm_msg)
@@ -1717,8 +1713,19 @@ def generate_html_inline(report: ServerReport) -> str:
                     if group.count > 1 and group.first_timestamp != group.last_timestamp:
                         timestamp_display = f"{group.first_timestamp} ... {group.last_timestamp}"
                         
+                    # Формируем список деталей
+                    details_html = '<div class="error-details-list" onclick="event.stopPropagation()">'
+                    for entry in group.all_entries:
+                        details_html += f"""
+                                <div class="sub-error">
+                                    <span class="sub-error-time">{entry.timestamp}</span>
+                                    <span class="sub-error-msg">{entry.message}</span>
+                                </div>
+                        """
+                    details_html += '</div>'
+
                     html += f"""
-                            <div class="error-item">
+                            <div class="error-item clickable" onclick="toggleErrorDetails(this)">
                                 <div class="error-header">
                                     <span class="error-type">
                                         {count_html}
@@ -1727,7 +1734,8 @@ def generate_html_inline(report: ServerReport) -> str:
                                     </span>
                                     <span class="error-time">{timestamp_display}</span>
                                 </div>
-                                <div class="error-message">{group.entry.message}</div>
+                                <div class="error-message">{group.group_message}</div>
+                                {details_html}
                             </div>
 """
             else:
@@ -1762,6 +1770,17 @@ def generate_html_inline(report: ServerReport) -> str:
             
             // Toggle details visibility
             detailsRow.classList.toggle('show');
+        }}
+        
+        function toggleErrorDetails(element) {{
+            const detailsList = element.querySelector('.error-details-list');
+            if (detailsList) {{
+                if (detailsList.style.display === 'block') {{
+                    detailsList.style.display = 'none';
+                }} else {{
+                    detailsList.style.display = 'block';
+                }}
+            }}
         }}
     </script>
 </body>
