@@ -16,11 +16,8 @@ REM Проверка и установка Python (если необходимо
 echo [1/4] Проверка Python...
 echo.
 
-REM Устанавливаем флаг, что скрипт вызван из install.bat
-set "CALLED_FROM_PARENT=1"
-
-REM Запускаем скрипт проверки/установки Python
-call "%~dp0python-installer\install-python.bat"
+REM Запускаем скрипт проверки/установки Python в тихом режиме
+call "%~dp0python-installer\install-python.bat" /quiet
 
 REM Проверяем результат
 if errorlevel 1 (
