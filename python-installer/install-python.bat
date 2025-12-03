@@ -267,12 +267,9 @@ if %errorlevel% neq 0 (
         )
     )
 
-    echo ⚠️  Python установлен, но требуется перезапуск терминала
-    echo Пожалуйста:
-    echo   1. Закройте это окно
-    echo   2. Откройте новую командную строку
-    echo   3. Python будет доступен автоматически
-    exit /b 0
+    echo ❌ Не удалось найти Python после установки
+    echo Попробуйте закрыть и открыть новую командную строку
+    exit /b 1
 )
 
 :check_pip
@@ -287,10 +284,17 @@ exit /b 0
 
 REM ===== Функция обновления переменных окружения =====
 :RefreshEnv
-REM Обновление PATH из реестра
-for /f "skip=2 tokens=3*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%a %%b"
-for /f "skip=2 tokens=3*" %%a in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USER_PATH=%%a %%b"
-set "PATH=%SYS_PATH%;%USER_PATH%"
+echo Обновление PATH в текущем сеансе...
+REM Обновление PATH из реестра (системный и пользовательский)
+for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH 2^>nul ^| findstr /i "PATH"') do set "SYS_PATH=%%B"
+for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v PATH 2^>nul ^| findstr /i "PATH"') do set "USER_PATH=%%B"
+
+REM Объединяем системный и пользовательский PATH
+if defined USER_PATH (
+    set "PATH=%SYS_PATH%;%USER_PATH%"
+) else (
+    set "PATH=%SYS_PATH%"
+)
 
 REM Добавим стандартные пути Python явно (на случай задержки обновления PATH)
 set "PATH=%PATH%;C:\Python314;C:\Python314\Scripts"
@@ -303,4 +307,5 @@ set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WindowsApps"
 set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.14_qbz5n2kfra8p0"
 set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0"
 
+echo PATH обновлён из реестра
 exit /b 0
