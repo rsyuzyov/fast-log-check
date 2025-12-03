@@ -1,17 +1,28 @@
 @echo off
 REM Универсальный скрипт проверки и установки Python для Windows
-REM Версия: 1.3.0
-REM Использование: install-python.bat [/quiet]
-REM   /quiet - Тихая установка без запросов (для текущего пользователя)
+REM Версия: 1.4.0
+REM Использование: install-python.bat [/quiet] [/for-all]
+REM   /quiet - Тихая установка без запросов
+REM   /for-all - Установка для всех пользователей (требует права администратора)
 REM Exit codes: 0 = Python готов к работе, 1 = Ошибка
 
 chcp 65001 > nul
 setlocal enabledelayedexpansion
 
-REM Проверка параметра /quiet
+REM Проверка параметров
 set "QUIET_MODE=0"
+set "FORCE_FOR_ALL=0"
+
+REM Обработка всех параметров
+:parse_args
+if "%~1"=="" goto :args_done
 if /i "%~1"=="/quiet" set "QUIET_MODE=1"
 if /i "%~1"=="-quiet" set "QUIET_MODE=1"
+if /i "%~1"=="/for-all" set "FORCE_FOR_ALL=1"
+if /i "%~1"=="-for-all" set "FORCE_FOR_ALL=1"
+shift
+goto :parse_args
+:args_done
 
 if "%QUIET_MODE%"=="1" (
     set "CALLED_FROM_PARENT=1"
@@ -125,7 +136,14 @@ echo.
 set "INSTALL_FOR_ALL=0"
 set "NEED_ADMIN=0"
 
-if "%QUIET_MODE%"=="1" (
+REM Проверка флага принудительной установки для всех
+if "%FORCE_FOR_ALL%"=="1" (
+    set "INSTALL_FOR_ALL=1"
+    set "NEED_ADMIN=1"
+    set "INSTALL_TYPE=2"
+    echo ✅ Установка для всех пользователей (передано через параметр)
+    echo.
+) else if "%QUIET_MODE%"=="1" (
     REM Тихий режим - всегда для текущего пользователя
     set "INSTALL_TYPE=1"
     echo ✅ Тихий режим: установка для текущего пользователя
@@ -171,8 +189,8 @@ if "%NEED_ADMIN%"=="1" (
         echo Перезапуск с правами администратора...
         echo.
 
-        REM Перезапуск с правами администратора
-        powershell -Command "Start-Process '%~f0' -Verb RunAs"
+        REM Перезапуск с правами администратора с параметрами /quiet /for-all
+        powershell -Command "Start-Process '%~f0' -ArgumentList '/quiet /for-all' -Verb RunAs"
         exit /b
     )
     echo ✅ Права администратора получены

@@ -31,6 +31,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Обновление PATH в текущей сессии после установки
+call :RefreshPath
+
 echo.
 for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
 echo ✅ Python %PYTHON_VERSION% готов к работе
@@ -102,3 +105,24 @@ echo Подробнее: см. README.md и USAGE.md
 echo.
 
 pause
+exit /b 0
+
+REM ===== Функция обновления переменных окружения =====
+:RefreshPath
+REM Обновление PATH из реестра
+for /f "skip=2 tokens=3*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%a %%b"
+for /f "skip=2 tokens=3*" %%a in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USER_PATH=%%a %%b"
+set "PATH=%SYS_PATH%;%USER_PATH%"
+
+REM Добавим стандартные пути Python явно (на случай задержки обновления PATH)
+set "PATH=%PATH%;C:\Python314;C:\Python314\Scripts"
+set "PATH=%PATH%;C:\Python313;C:\Python313\Scripts"
+set "PATH=%PATH%;C:\Program Files\Python314;C:\Program Files\Python314\Scripts"
+set "PATH=%PATH%;C:\Program Files\Python313;C:\Program Files\Python313\Scripts"
+set "PATH=%PATH%;%LOCALAPPDATA%\Programs\Python\Python314;%LOCALAPPDATA%\Programs\Python\Python314\Scripts"
+set "PATH=%PATH%;%LOCALAPPDATA%\Programs\Python\Python313;%LOCALAPPDATA%\Programs\Python\Python313\Scripts"
+set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WindowsApps"
+set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.14_qbz5n2kfra8p0"
+set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0"
+
+exit /b 0
