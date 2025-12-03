@@ -54,5 +54,9 @@
     "zfs-auto-snap": {
         "title": "Ошибки zfs-auto-snap",
         "severity": "error"
+    },
+    "auth key pair too old, rotating": {
+        "title": "auth key pair too old, rotating",
+        "severity": "skip"
     }
 }

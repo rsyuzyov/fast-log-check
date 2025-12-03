@@ -919,23 +919,30 @@ class ServerChecks:
         return result
     
     def check_storage(self) -> CheckResult:
-        """Проверка хранилищ"""
+        """Проверка дискового пространства через df"""
         result = CheckResult(
             name='storage',
-            source_name='Хранилища (дисковое пространство)',
-            source_path='pvesm status',
+            source_name='Дисковое пространство (df)',
+            source_path='df -h',
             errors=0,
             warnings=0,
             status='success'
         )
         
         try:
-            cmd = 'pvesm status 2>/dev/null'
+            # Используем -P для POSIX совместимости (одна строка на запись)
+            # Исключаем tmpfs, devtmpfs, overlay, squashfs чтобы не засорять отчет
+            cmd = "df -Ph -x tmpfs -x devtmpfs -x overlay -x squashfs"
             stdout, stderr, code = self.ssh.execute(cmd)
             
             if code != 0:
-                result.status = 'error'
-                return result
+                # Если df не сработал, возможно это не Linux или нет флага -x
+                # Попробуем просто df -Ph
+                cmd = "df -Ph"
+                stdout, stderr, code = self.ssh.execute(cmd)
+                if code != 0:
+                    result.status = 'error'
+                    return result
             
             lines = stdout.strip().split('\n')[1:]  # Пропускаем заголовок
             
@@ -944,42 +951,48 @@ class ServerChecks:
                 if len(parts) < 6:
                     continue
                 
-                name = parts[0]
-                storage_type = parts[1]
-                status = parts[2]
-                usage_percent = parts[5].rstrip('%')
-                
-                if status == 'disabled':
-                    continue
+                # df -P format: Filesystem Size Used Avail Capacity Mounted on
+                filesystem = parts[0]
+                size = parts[1]
+                used = parts[2]
+                avail = parts[3]
+                capacity_str = parts[4].rstrip('%')
+                mount_point = parts[5]
                 
                 try:
-                    usage = float(usage_percent)
+                    # Обработка '-' в выводе df (иногда бывает)
+                    if capacity_str == '-':
+                        continue
+                        
+                    usage = float(capacity_str)
                     
+                    severity = None
                     if usage > 90:
                         severity = 'critical'
                         result.errors += 1
                         result.status = 'error'
-                    elif usage > 75:
+                    elif usage > 80:
                         severity = 'warning'
                         result.warnings += 1
                         if result.status == 'success':
                             result.status = 'warning'
-                    else:
-                        continue
                     
-                    entry = LogEntry(
-                        timestamp='Current',
-                        type='Storage Usage',
-                        severity=severity,
-                        message=f"{name} ({storage_type}): {usage}% использовано"
-                    )
-                    result.entries.append(entry)
-                    
-                    result.details[name] = {
-                        'type': storage_type,
-                        'usage': usage,
-                        'status': status
-                    }
+                    if severity:
+                        entry = LogEntry(
+                            timestamp='Current',
+                            type='Disk Usage',
+                            severity=severity,
+                            message=f"Раздел {mount_point} ({filesystem}): {usage}% использовано ({used}/{size})"
+                        )
+                        result.entries.append(entry)
+                        
+                        result.details[mount_point] = {
+                            'filesystem': filesystem,
+                            'usage': usage,
+                            'size': size,
+                            'used': used,
+                            'avail': avail
+                        }
                     
                 except ValueError:
                     continue
@@ -1216,16 +1229,17 @@ def check_server(hostname: str, args: argparse.Namespace) -> ServerReport:
     checks = ServerChecks(ssh, args.period)
     
     # Список всех проверок
+    # Список всех проверок
     check_functions = [
         checks.check_journalctl_errors,
         checks.check_journalctl_warnings,
         checks.check_auth_log,
-        checks.check_fail2ban,
-        checks.check_corosync,
         checks.check_dmesg,
+        checks.check_fail2ban,
+        checks.check_storage,
+        checks.check_corosync,
         checks.check_pveproxy,
         checks.check_vms_status,
-        checks.check_storage,
         checks.check_cluster,
     ]
     

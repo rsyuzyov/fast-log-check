@@ -35,14 +35,14 @@ python .\check_server_logs.py server1.example.com --file servers.txt --ask-passw
 3. **Лог аутентификации** - `/var/log/auth.log`
 4. **Системные сообщения ядра** - `dmesg`
 5. **Fail2ban (защита от брутфорса)** - `/var/log/fail2ban.log`
-6. **ZFS снимки** (опционально с автоочисткой) - `zfs list -t snapshot`
+6. **Дисковое пространство** - `df -h`
+7. **ZFS снимки** (опционально с автоочисткой) - `zfs list -t snapshot`
 
 ### Proxmox
 
-7. **Corosync кластер** - `journalctl -u corosync`
-8. **PVE Proxy (HTTP доступ)** - `/var/log/pveproxy/access.log`
-9. **Виртуальные машины (статус)** - `qm list`
-10. **Хранилища (дисковое пространство)** - `pvesm status`
+8. **Corosync кластер** - `journalctl -u corosync`
+9. **PVE Proxy (HTTP доступ)** - `/var/log/pveproxy/access.log`
+10. **Виртуальные машины (статус)** - `qm list`
 11. **Кластер Proxmox (кворум)** - `pvecm status`
 
 ## Группировка событий
