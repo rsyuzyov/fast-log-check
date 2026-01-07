@@ -19,10 +19,37 @@ import paramiko
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
+
+def cleanup_old_logs(logs_dir: Path):
+    """Удаление логов старше 1 месяца"""
+    cutoff = datetime.now() - timedelta(days=30)
+    
+    try:
+        for log_file in logs_dir.glob("*.log"):
+            try:
+                if log_file.stat().st_mtime < cutoff.timestamp():
+                    log_file.unlink()
+            except Exception:
+                pass  # Игнорируем ошибки удаления
+    except Exception:
+        pass
+
+
 # Настройка логирования
 def setup_logging(verbose: bool = False) -> logging.Logger:
     """Настройка логирования"""
     level = logging.DEBUG if verbose else logging.INFO
+    
+    # Создаем директорию для логов
+    logs_dir = Path('logs')
+    logs_dir.mkdir(exist_ok=True)
+    
+    # Очищаем старые логи
+    cleanup_old_logs(logs_dir)
+    
+    # Формируем имя файла с текущей датой и временем
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    log_file = logs_dir / f"{timestamp}.log"
 
     # Логирование в консоль с поддержкой UTF-8
     console_handler = logging.StreamHandler(sys.stdout)
@@ -34,7 +61,7 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
         sys.stdout.reconfigure(encoding='utf-8')
 
     # Логирование в файл с UTF-8
-    file_handler = logging.FileHandler('check_server_logs.log', encoding='utf-8')
+    file_handler = logging.FileHandler(str(log_file), encoding='utf-8')
     file_handler.setLevel(logging.DEBUG)
     file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(file_formatter)
@@ -1829,9 +1856,9 @@ def main():
     # Проверяем, что указан хотя бы один сервер
     if not hostnames:
         logger.error("❌ Не указаны серверы для проверки!")
-        logger.error("   Используйте: python check_server_logs.py server1.example.com")
-        logger.error("   Или:         python check_server_logs.py --file servers.txt")
-        logger.error("   Или:         python check_server_logs.py --use-ssh-config")
+        logger.error("   Используйте: python run.py server1.example.com")
+        logger.error("   Или:         python run.py --file servers.txt")
+        logger.error("   Или:         python run.py --use-ssh-config")
         sys.exit(1)
     
     # Удаляем дубликаты, сохраняя порядок
