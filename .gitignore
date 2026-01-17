@@ -6,4 +6,4 @@ logs/
 # PyInstaller
 build/
 dist/
-#*.spec
+*.spec

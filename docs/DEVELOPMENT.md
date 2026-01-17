@@ -17,20 +17,20 @@ pytest tests/ --cov=run --cov-report=html
 
 Проект использует GitHub Actions для автоматического тестирования и сборки:
 
-- **[test.yml](.github/workflows/test.yml)** - запускается при каждом push/PR в main
+- **[test.yml](../.github/workflows/test.yml)** - запускается при каждом push/PR в main
   - Тесты на Python 3.8, 3.11, 3.12
   - Тесты на Linux и Windows
   - Линтинг с flake8
   - Проверка сборки бинарников
 
-- **[release.yml](.github/workflows/release.yml)** - запускается при создании тега `v*`
+- **[release.yml](../.github/workflows/release.yml)** - запускается при создании тега `v*`
   - Сначала запускает все тесты
   - Только при успешных тестах собирает бинарники
   - Публикует релиз с бинарниками для Linux и Windows
 
 ## Структура тестов
 
-Тесты находятся в директории [`tests/`](tests/):
+Тесты находятся в директории [`tests/`](../tests/):
 
 - `test_run.py` - unit-тесты основных функций
   - Нормализация сообщений
