@@ -12,7 +12,7 @@ description: Анализ системных логов и состояния с
 Для анализа одного или нескольких серверов выполни команду:
 
 ```bash
-python run.py <hostname> [options]
+fast-log-check <hostname> [options]
 ```
 
 ### Основные параметры:
@@ -45,16 +45,16 @@ python run.py <hostname> [options]
 ## Примеры команд
 
 1.  **Полный анализ конкретного сервера:**
-    `python run.py server1.example.com --ai-output --ai-format full`
+    `fast-log-check server1.example.com --ai-output --ai-format full`
 
 2.  **Быстрая проверка группы серверов за последние 2 дня:**
-    `python run.py srv1 srv2 srv3 --period 48 --ai-output --ai-format standard`
+    `fast-log-check srv1 srv2 srv3 --period 48 --ai-output --ai-format standard`
 
 3.  **Проверка всех серверов из файла с автоочисткой ZFS (если заполнено > 85%):**
-    `python run.py --file servers.txt --cleanup-threshold 85 --ai-output --ai-format full`
+    `fast-log-check --file servers.txt --cleanup-threshold 85 --ai-output --ai-format full`
 
 4.  **Анализ всех хостов из ~/.ssh/config:**
-    `python run.py --use-ssh-config --ai-output`
+    `fast-log-check --use-ssh-config --ai-output`
 
 ## Интерпретация вывода (AI-output)
 
