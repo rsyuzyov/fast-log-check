@@ -45,21 +45,8 @@ usage: check_server_logs.py [-h] [--file FILE] [--period PERIOD] [--output OUTPU
 
 ### Использование файла со списком серверов
 
-Создайте текстовый файл `servers.txt`:
-
-```text
-# Список серверов для проверки
-# Строки начинающиеся с # игнорируются
-
-srv-hv1.ag.local
-srv-hv2.ag.local
-srv-hv3.ag.local
-```
-
-Запуск проверки:
-
 ```bash
-# Проверка серверов из файла
+# Проверка серверов из файла. Пример файла servers.txt есть в docs/servers.txt.example
 ./check_server_logs.py --file servers.txt --ssh-config ~/.ssh/config
 
 # Комбинирование файла и командной строки

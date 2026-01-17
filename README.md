@@ -1,7 +1,7 @@
 # Fast log check tool
 
-Инструмент для быстрой параллельной проверки логов на множестве linux-серверов.  
-Пробегается по списку серверов и сорбирает ошибки из логов и создает html-отчет.  
+Инструмент для быстрой проверки логов на linux-серверах.  
+Пробегается по списку серверов, собирает ошибки из логов и создает html-отчет.  
 Каждый раздел в отчете можно [развернуть до детальных записей](https://htmlpreview.github.io/?https://github.com/rsyuzyov/fastlogcheck/blob/main/docs/example-report.html)  
 <a href="https://htmlpreview.github.io/?https://github.com/rsyuzyov/fastlogcheck/blob/main/docs/example-report.html"><img src="docs/screenshot-example.gif" alt="Пример отчета" width="40%"></a>
 
@@ -17,9 +17,9 @@
 Для авторизации по паролю используется флаг `--ask-password`.  
 Все примеры для windows, линуксоиды и так все знают.  
 ```powershell
-python .\check_server_logs.py server1.example.com server2.example.com
-python .\check_server_logs.py --file servers.txt
-python .\check_server_logs.py server1.example.com --file servers.txt --ask-password
+python .\run.py server1.example.com server2.example.com
+python .\run.py --file servers.txt
+python .\run.py server1.example.com --file servers.txt --ask-password
 ```
 
 **Подробности см. в [USAGE.md](USAGE.md)**
