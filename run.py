@@ -976,14 +976,27 @@ class ServerChecks:
         )
 
         try:
-            cmd = "grep -i fail /var/log/auth.log | tail -20"
+            # Используем journalctl для получения логов аутентификации с фильтром по времени
+            cmd = f'journalctl _COMM=sshd --since "{self.period_hours} hours ago" --no-pager 2>/dev/null | grep -i fail'
             stdout, stderr, code = self.ssh.execute(cmd)
+
+            # Если journalctl не работает (нет systemd), пробуем классический способ с фильтром по дате
+            if code != 0 or not stdout.strip():
+                # Вычисляем дату начала периода в формате ISO для сравнения
+                # Формат auth.log: 2024-01-18T22:59:00.123456+05:00
+                cutoff_date = (datetime.now() - timedelta(hours=self.period_hours)).strftime("%Y-%m-%dT%H:%M:%S")
+                # Используем awk для фильтрации по дате (только записи новее cutoff_date)
+                cmd = f'grep -i fail /var/log/auth.log 2>/dev/null | awk \'$1 >= "{cutoff_date}"\' | tail -100'
+                stdout, stderr, code = self.ssh.execute(cmd)
 
             lines = [l for l in stdout.strip().split("\n") if l and "fail" in l.lower()]
 
             for line in lines:
-                # Парсим timestamp из auth.log
+                # Парсим timestamp из auth.log (формат: 2024-01-18T22:59:00)
                 match = re.match(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", line)
+                if not match:
+                    # Альтернативный формат journalctl: Jan 18 22:59:00
+                    match = re.match(r"(\w+\s+\d+\s+\d+:\d+:\d+)", line)
                 timestamp = match.group(1) if match else "Unknown"
 
                 entry = LogEntry(
@@ -1016,7 +1029,10 @@ class ServerChecks:
         )
 
         try:
-            cmd = "cat /var/log/fail2ban.log 2>/dev/null | grep -i found"
+            # Вычисляем дату начала периода в формате fail2ban (YYYY-MM-DD HH:MM:SS)
+            cutoff_date = (datetime.now() - timedelta(hours=self.period_hours)).strftime("%Y-%m-%d %H:%M:%S")
+            # Используем awk для фильтрации по дате (записи новее cutoff_date)
+            cmd = f'grep -i found /var/log/fail2ban.log 2>/dev/null | awk \'$1\" \"$2 >= "{cutoff_date}"\' | tail -100'
             stdout, stderr, code = self.ssh.execute(cmd)
 
             lines = [
@@ -1104,13 +1120,29 @@ class ServerChecks:
         )
 
         try:
-            cmd = "dmesg -T --level=err,warn 2>/dev/null | tail -50"
+            # Вычисляем дату начала периода
+            cutoff_date = (datetime.now() - timedelta(hours=self.period_hours)).strftime("%Y-%m-%d %H:%M:%S")
+            # dmesg -T выводит временные метки в формате [Sat Jan 18 22:59:00 2026]
+            # Используем awk для фильтрации по дате. Формат dmesg: [Day Mon DD HH:MM:SS YYYY]
+            # Альтернативный подход: фильтруем по журналу ядра через journalctl
+            cmd = f'journalctl -k --since "{self.period_hours} hours ago" --priority=warning --no-pager 2>/dev/null'
             stdout, stderr, code = self.ssh.execute(cmd)
+
+            # Если journalctl не работает, используем dmesg с фильтрацией
+            if code != 0 or not stdout.strip():
+                # Используем dmesg -T и фильтруем вручную через awk
+                # Формат: [Sat Jan 18 22:59:00 2026] message
+                cmd = f'dmesg -T --level=err,warn 2>/dev/null | awk -v cutoff="{cutoff_date}" \'{{match($0, /\\[([A-Za-z]+ [A-Za-z]+ [0-9]+ [0-9]+:[0-9]+:[0-9]+ [0-9]+)\\]/, arr); if (arr[1] >= cutoff) print}}\' | tail -100'
+                stdout, stderr, code = self.ssh.execute(cmd)
 
             lines = [l for l in stdout.strip().split("\n") if l]
 
             for line in lines:
+                # Парсим timestamp из dmesg -T формата [Sat Jan 18 22:59:00 2026]
                 match = re.match(r"\[([^\]]+)\]", line)
+                if not match:
+                    # Альтернативный формат journalctl: Jan 18 22:59:00
+                    match = re.match(r"(\w+\s+\d+\s+\d+:\d+:\d+)", line)
                 timestamp = match.group(1) if match else "Unknown"
 
                 severity = "critical" if "error" in line.lower() else "warning"
@@ -1151,19 +1183,31 @@ class ServerChecks:
         )
 
         try:
-            cmd = 'tail -100 /var/log/pveproxy/access.log 2>/dev/null | grep -E " (4[0-9]{2}|5[0-9]{2}) "'
+            # Вычисляем дату начала периода
+            # Формат access.log: 192.168.1.1 - user [18/Jan/2026:22:59:00 +0500] "GET /..." 200 123
+            cutoff_time = datetime.now() - timedelta(hours=self.period_hours)
+            # Преобразуем в формат Apache: DD/Mon/YYYY
+            cutoff_date_str = cutoff_time.strftime("%d/%b/%Y:%H:%M:%S")
+            
+            # Используем awk для фильтрации по дате в формате Apache
+            # Формат даты в логе: [18/Jan/2026:22:59:00 +0500]
+            cmd = f'''grep -E " (4[0-9]{{2}}|5[0-9]{{2}}) " /var/log/pveproxy/access.log 2>/dev/null | awk -F'[\\\\[\\\\]]' -v cutoff="{cutoff_date_str}" '{{if ($2 >= cutoff) print}}' | tail -100'''
             stdout, stderr, code = self.ssh.execute(cmd)
 
             lines = [l for l in stdout.strip().split("\n") if l]
 
             for line in lines:
+                # Парсим timestamp из формата Apache [18/Jan/2026:22:59:00 +0500]
+                timestamp_match = re.search(r'\[([^\]]+)\]', line)
+                timestamp = timestamp_match.group(1) if timestamp_match else "Unknown"
+                
                 match = re.search(r" (\d{3}) ", line)
                 http_code = match.group(1) if match else "000"
 
                 severity = "critical" if http_code.startswith("5") else "warning"
 
                 entry = LogEntry(
-                    timestamp="Recent",
+                    timestamp=timestamp,
                     type=f"HTTP {http_code}",
                     severity=severity,
                     message=line,
