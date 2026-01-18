@@ -18,31 +18,45 @@
 
 ### Шаг 1: Установить бинарник в PATH
 
-#### Linux / macOS
+#### Linux
 
 ```bash
 # Создать директорию для бинарников (если не существует)
 mkdir -p ~/.local/bin
 
-# Скачать бинарник (замените URL на актуальный из Releases)
-# Для Linux:
-curl -L https://github.com/rsyuzyov/fastlogcheck/releases/latest/download/fast-log-check-linux-amd64 \
-  -o ~/.local/bin/fast-log-check
-
-# Для macOS Intel:
-curl -L https://github.com/rsyuzyov/fastlogcheck/releases/latest/download/fast-log-check-darwin-amd64 \
-  -o ~/.local/bin/fast-log-check
-
-# Для macOS Apple Silicon:
-curl -L https://github.com/rsyuzyov/fastlogcheck/releases/latest/download/fast-log-check-darwin-arm64 \
+# Скачать бинарник
+curl -L https://github.com/rsyuzyov/fast-log-check/releases/latest/download/fast-log-check \
   -o ~/.local/bin/fast-log-check
 
 # Сделать исполняемым
 chmod +x ~/.local/bin/fast-log-check
 
 # Добавить в PATH (если ~/.local/bin ещё не в PATH)
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc  # или ~/.zshrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
+```
+
+#### macOS
+
+```bash
+# Создать директорию для бинарников (если не существует)
+mkdir -p ~/.local/bin
+
+# Скачать бинарник (выберите нужную архитектуру)
+# Для Intel Mac:
+curl -L https://github.com/rsyuzyov/fast-log-check/releases/latest/download/fast-log-check-darwin-amd64 \
+  -o ~/.local/bin/fast-log-check
+
+# Для Apple Silicon (M1/M2/M3):
+curl -L https://github.com/rsyuzyov/fast-log-check/releases/latest/download/fast-log-check-darwin-arm64 \
+  -o ~/.local/bin/fast-log-check
+
+# Сделать исполняемым
+chmod +x ~/.local/bin/fast-log-check
+
+# Добавить в PATH (если ~/.local/bin ещё не в PATH)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
 #### Windows (PowerShell)
@@ -53,7 +67,7 @@ $BinPath = "$env:USERPROFILE\.local\bin"
 New-Item -Path $BinPath -ItemType Directory -Force
 
 # Скачать бинарник
-$Url = "https://github.com/rsyuzyov/fastlogcheck/releases/latest/download/fast-log-check-windows-amd64.exe"
+$Url = "https://github.com/rsyuzyov/fast-log-check/releases/latest/download/fast-log-check.exe"
 Invoke-WebRequest -Uri $Url -OutFile "$BinPath\fast-log-check.exe"
 
 # Добавить в PATH (для текущего пользователя)
@@ -62,7 +76,8 @@ if ($CurrentPath -notlike "*$BinPath*") {
     [Environment]::SetEnvironmentVariable("PATH", "$CurrentPath;$BinPath", "User")
 }
 
-# Перезапустите терминал для применения PATH
+# Применить PATH в текущей сессии (без перезапуска терминала)
+$env:PATH = "$env:PATH;$BinPath"
 ```
 
 #### Проверка установки
@@ -85,7 +100,7 @@ fast-log-check --version
 
 ```bash
 mkdir -p ~/.claude/skills/log-checker
-curl -L https://raw.githubusercontent.com/rsyuzyov/fastlogcheck/main/.claude/skills/log-checker/SKILL.md \
+curl -L https://raw.githubusercontent.com/rsyuzyov/fast-log-check/main/.claude/skills/log-checker/SKILL.md \
   -o ~/.claude/skills/log-checker/SKILL.md
 ```
 
@@ -95,7 +110,7 @@ curl -L https://raw.githubusercontent.com/rsyuzyov/fastlogcheck/main/.claude/ski
 $SkillPath = "$env:USERPROFILE\.claude\skills\log-checker"
 New-Item -Path $SkillPath -ItemType Directory -Force
 Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/rsyuzyov/fastlogcheck/main/.claude/skills/log-checker/SKILL.md" `
+  -Uri "https://raw.githubusercontent.com/rsyuzyov/fast-log-check/main/.claude/skills/log-checker/SKILL.md" `
   -OutFile "$SkillPath\SKILL.md"
 ```
 
@@ -106,7 +121,7 @@ Invoke-WebRequest `
 ```bash
 # В корне вашего проекта
 mkdir -p .claude/skills/log-checker
-curl -L https://raw.githubusercontent.com/rsyuzyov/fastlogcheck/main/.claude/skills/log-checker/SKILL.md \
+curl -L https://raw.githubusercontent.com/rsyuzyov/fast-log-check/main/.claude/skills/log-checker/SKILL.md \
   -o .claude/skills/log-checker/SKILL.md
 ```
 

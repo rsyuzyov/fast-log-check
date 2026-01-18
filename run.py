@@ -124,18 +124,29 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
 # Парсинг аргументов командной строки
 def parse_arguments() -> argparse.Namespace:
     """Парсинг аргументов командной строки"""
-    parser = argparse.ArgumentParser(
-        description="Анализ логов серверов через SSH",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+    
+    # Получаем реальные пути для отображения в help
+    grouping_rules_path = get_resource_path("grouping_rules.json", prefer_local=True)
+    default_reports_dir = Path("reports").resolve()
+    
+    epilog_text = f"""
     Примеры использования:
+      %(prog)s --use-ssh-config
       %(prog)s server1.example.com
       %(prog)s admin@192.168.1.100 --ask-password
       %(prog)s server1.example.com server2.example.com server3.example.com --period 48
       %(prog)s --file servers.txt --period 48
       %(prog)s server1.example.com --cleanup-threshold 85 --verbose
       %(prog)s server1.example.com --output ./my_reports
-            """,
+
+    Текущее расположение grouping_rules.json: {grouping_rules_path}
+    Каталог отчетов по умолчанию: {default_reports_dir}
+            """
+    
+    parser = argparse.ArgumentParser(
+        description="Сбор логов серверов",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=epilog_text,
     )
 
     parser.add_argument(
@@ -3311,9 +3322,14 @@ def main():
     logger.info("=" * 80)
     total_errors = sum(r.total_errors for r in reports)
     total_warnings = sum(r.total_warnings for r in reports)
+    connection_failures = sum(1 for r in reports if r.connection_error is not None)
     logger.info(
         f"📊 Итого: {total_errors} ошибок, {total_warnings} предупреждений на {len(reports)} серверах"
     )
+    if connection_failures > 0:
+        logger.info(
+            f"⚠️  Не удалось подключиться к {connection_failures} из {len(reports)} серверов"
+        )
     logger.info("=" * 80)
 
 
